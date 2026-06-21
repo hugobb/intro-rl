@@ -52,7 +52,7 @@ so the presenter can widen/narrow the quality gap and show the effect on each po
 
 Estimated value per restaurant uses the standard incremental sample-average update:
 
-```
+```text
 Q_{n+1} = Q_n + (1/n) * (reward - Q_n)
 ```
 
@@ -73,7 +73,7 @@ deploys/opens anywhere, while keeping the bundle tiny and the simulation logic
 transparent (nice when showing code in a lecture). React handles the reactive UI
 (trackers, sliders, tabs); canvas handles the game-like animation.
 
-```
+```text
 intro-rl/
 ├── package.json
 ├── vite.config.ts
@@ -159,6 +159,36 @@ Single screen for the bandit example:
 The speed multiplier controls how quickly steps advance. The walk animation keeps
 playing, just faster, at every speed (per explicit request — no snapping). At extreme
 multipliers the walk becomes near-instant but is still rendered.
+
+## Documentation Deliverables
+
+The implementation must also produce project documentation so the app is approachable
+for both humans and future coding agents:
+
+- **`README.md`** (human-facing) — replace the current empty file with:
+  - What the project is (interactive RL lecture demos) and the multi-armed bandit
+    example's purpose.
+  - Quickstart: `pnpm install`, `pnpm dev`, `pnpm build`.
+  - Brief overview of the project structure and how to add a new example.
+  - The poutine scenario and the four policies, in one or two sentences each.
+
+- **`AGENTS.md`** (agent-facing) — a context file for AI coding agents, following the
+  convention used elsewhere in the user's projects. It should cover:
+  - Project summary and tech stack (pnpm + Vite + React + TS, canvas pixel art, no
+    game engine).
+  - Repository structure with a one-line purpose per directory — especially the
+    `src/shared/{ui,pixel,rl}` split and `src/examples/` convention, so an agent knows
+    **where to look** for the RL primitives, the simulation engine, the canvas scene,
+    and the shared UI widgets.
+  - The simulation model: categorical reward distributions, incremental sample-average
+    estimates, and the **trajectory + seeded-RNG** design that powers step/rewind/replay.
+  - Conventions: TypeScript strict, `src/shared/rl/` is pure logic (no React, no canvas,
+    no DOM), pixel/canvas rendering isolated in `scene.ts` / `src/shared/pixel/`.
+  - How to add a new example (new folder under `src/examples/` + route + landing-page
+    card), and known gotchas.
+
+`CLAUDE.md` should re-export `AGENTS.md` (e.g. `@AGENTS.md`) to match the user's existing
+project convention, keeping a single source of truth for agent context.
 
 ## Out of Scope (YAGNI)
 
