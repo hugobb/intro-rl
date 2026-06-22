@@ -48,3 +48,50 @@ describe("rmsError", () => {
     expect(rmsError([1, 2], [3, 4], [])).toBe(0);
   });
 });
+
+describe("n-step TD", () => {
+  const EP: Transition[] = [
+    { state: 0, reward: -2, nextState: 1, done: false },
+    { state: 1, reward: 10, nextState: 2, done: true },
+  ];
+  const two = [...EP, ...EP];
+
+  it("n=1 is identical to TD(0)", () => {
+    const a = computeValues(two, { method: "nstep", alpha: 1, gamma: 1, n: 1, numStates: 3 });
+    const b = computeValues(two, { method: "td0", alpha: 1, gamma: 1, n: 1, numStates: 3 });
+    expect(a).toEqual(b);
+  });
+
+  it("large n equals Monte Carlo within one episode", () => {
+    const a = computeValues(EP, { method: "nstep", alpha: 1, gamma: 1, n: 10, numStates: 3 });
+    const b = computeValues(EP, { method: "mc", alpha: 1, gamma: 1, n: 10, numStates: 3 });
+    expect(a).toEqual(b);
+  });
+
+  it("a 2-step return on a 3-state episode matches a hand computation", () => {
+    // Episode: s0 -(r=1)-> s1 -(r=1)-> s2 -(r=10,done)-> term. gamma=1, alpha=1, n=2.
+    const ep: Transition[] = [
+      { state: 0, reward: 1, nextState: 1, done: false },
+      { state: 1, reward: 1, nextState: 2, done: false },
+      { state: 2, reward: 10, nextState: 3, done: true },
+    ];
+    const V = computeValues(ep, { method: "nstep", alpha: 1, gamma: 1, n: 2, numStates: 4 });
+    // tau=0 closes at 2nd reward: G = 1 + 1 + V[2]; V[2] updated first in same pass?
+    // Online order: V[2] is updated at episode end (flush) BEFORE? No — tau=0 closes
+    // when the 2nd transition arrives, bootstrapping on V[s2]=0 at that time:
+    // V[0] = 1 + 1 + 0 = 2. Then flush: V[1] = 1 + 10 = 11; V[2] = 10.
+    expect(V[0]).toBeCloseTo(2);
+    expect(V[1]).toBeCloseTo(11);
+    expect(V[2]).toBeCloseTo(10);
+  });
+
+  it("applies only closed windows for an incomplete episode", () => {
+    const partial: Transition[] = [
+      { state: 0, reward: 1, nextState: 1, done: false },
+      { state: 1, reward: 1, nextState: 2, done: false },
+    ];
+    // n=3: no window closes, no episode end -> no updates yet.
+    expect(computeValues(partial, { method: "nstep", alpha: 1, gamma: 1, n: 3, numStates: 3 }))
+      .toEqual([0, 0, 0]);
+  });
+});

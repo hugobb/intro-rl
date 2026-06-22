@@ -59,10 +59,46 @@ function applyMc(V: number[], trans: Transition[], p: EvalParams): number[] {
   return V;
 }
 
-// n-step implementation lands in Task 4; throw until then so an accidental
-// "nstep" call fails loudly rather than silently returning zeros.
-function applyNStep(_V: number[], _trans: Transition[], _p: EvalParams): number[] {
-  throw new Error("n-step estimator not implemented yet");
+function applyNStep(V: number[], trans: Transition[], p: EvalParams): number[] {
+  const n = Math.max(1, Math.floor(p.n));
+  let ep: Transition[] = [];
+  let applied = 0; // states in the current episode already updated
+
+  // Apply every state whose full n-step window is now available. The bootstrap
+  // state after n transitions from tau is ep[tau+n-1].nextState (= terminal at
+  // episode end, where V is 0).
+  const applyFullWindows = () => {
+    while (ep.length >= applied + n) {
+      const tau = applied;
+      let G = 0;
+      for (let k = n - 1; k >= 0; k--) G = ep[tau + k].reward + p.gamma * G;
+      const bootCell = ep[tau + n - 1].nextState;
+      G += Math.pow(p.gamma, n) * V[bootCell];
+      V[ep[tau].state] += p.alpha * (G - V[ep[tau].state]);
+      applied += 1;
+    }
+  };
+
+  for (const t of trans) {
+    ep.push(t);
+    if (!t.done) {
+      applyFullWindows();
+      continue;
+    }
+    // Episode end: close any remaining full windows, then flush the tail states
+    // (their windows reach the terminal, so no bootstrap).
+    applyFullWindows();
+    const L = ep.length;
+    for (let tau = applied; tau < L; tau++) {
+      let G = 0;
+      for (let k = L - 1; k >= tau; k--) G = ep[k].reward + p.gamma * G;
+      V[ep[tau].state] += p.alpha * (G - V[ep[tau].state]);
+    }
+    ep = [];
+    applied = 0;
+  }
+  // Trailing incomplete episode keeps only its already-applied closed windows.
+  return V;
 }
 
 /** RMS error of `vEst` vs `vTrue` over the given state indices. */
