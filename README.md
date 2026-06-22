@@ -32,6 +32,7 @@ pnpm test       # run unit tests (vitest)
 - `src/shared/pixel/` — palette + canvas helpers for the 8-bit look.
 - `src/examples/<name>/` — one folder per demo (`simulation.ts`, `scene.ts`, page component).
 - `src/pages/Landing.tsx` — demo index.
+- Styling: **Tailwind CSS v4** (utility classes; retro palette + pixel font as `@theme` tokens in `src/styles.css`).
 
 ## Adding a new example
 
