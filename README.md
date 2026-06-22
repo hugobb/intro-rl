@@ -28,6 +28,17 @@ values:
 - **TD(0)** — update every step, bootstrapping on the next state's estimate.
 - **n-step TD** — `n` real rewards then bootstrap; `n=1` is TD(0), large `n` approaches MC.
 
+The grid world also supports:
+
+- **V(s) / Q(s,a) toggle** — switch the grid between state values and model-derived
+  state-action values (four triangular quadrants per cell).
+- **ε-soft policy** — make the policy stochastic (with probability ε take a random action);
+  the analytical ground truth follows the ε-soft policy.
+- **Chart metrics** — measure RMS error over the greedy path, the visited states, or all states.
+- **Manual mode** — drive the character with the arrow keys and watch the estimates update.
+- Recognizable cell sprites (road, crosswalk, manhole, poutine, restaurant), crash/fall
+  animations, floating reward numbers, and an 8-bit episode return tracker.
+
 ## Quickstart
 
 ```bash

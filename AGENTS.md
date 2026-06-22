@@ -27,7 +27,8 @@ First example: a multi-armed bandit ("best poutine in Montréal").
   - `policies.ts` — `selectArm` / `selectArmWithReason` (reports explore vs exploit) for random/greedy/optimistic/epsilon-greedy.
   - `gridworld.ts` — grid MDP: cell/action/policy types, `step` (sampled),
     `expectedReward`, `reachableStates`, `solveV` (analytical V via iterative policy
-    evaluation).
+    evaluation), `solveV(…, epsilon)` for ε-soft policies, `computeQ` for state-action values,
+    `allStates` for metrics over all grid states.
   - `td-estimators.ts` — MC / TD(0) / n-step policy-evaluation updates
     (`computeValues`) + `rmsError`. Pure functions over a `Transition[]`.
 - `src/examples/multi-armed-bandit/`:
@@ -38,10 +39,15 @@ First example: a multi-armed bandit ("best poutine in Montréal").
 - `src/examples/grid-world/`:
   - `world.ts` — default ASCII map, default policy, constants.
   - `simulation.ts` — trajectory state machine; `derive` recomputes `V(s)` from the
-    trajectory prefix so MC/n-step delayed updates rewind correctly. **Start here.**
+    trajectory prefix so MC/n-step delayed updates rewind correctly. Now supports ε-soft
+    stepping via `policyType` and `epsilon` config, manual `chooseAction`, and helpers
+    `visitedStates` / `episodeReturn` for tracking. **Start here.**
   - `scene.ts` — grid layout math (`computeGridLayout`, `cellRect`, `cellAtPoint`,
-    `heatColor`) + `drawScene` (heatmap, character, policy arrows).
-  - `MethodTabs.tsx` / `StateValueTable.tsx` / `ConvergenceChart.tsx` — UI pieces.
+    `heatColor`) + `drawScene` (heatmap, character, policy arrows). Renders cell sprites
+    (road, crosswalk, manhole, poutine, restaurant), Q-value quadrants (`cellQuadrant`),
+    and hazard/reward visual effects.
+  - `ValueViewTabs.tsx` / `PolicyTypeTabs.tsx` / `ControlModeTabs.tsx` / `ReturnTracker.tsx` — toggle V/Q view, ε-soft vs deterministic, auto/manual mode, and floating return count.
+  - `MethodTabs.tsx` / `StateValueTable.tsx` / `ConvergenceChart.tsx` — estimation method selector, state values table, convergence metrics (greedy path / visited states / all states).
   - `GridWorldExample.tsx` — page composition + rAF loop + policy editor (click to edit).
 - `src/shared/ui/` — reusable React widgets (tabs, controls, trackers, settings, event log).
   - `chart.ts` — chart data model (`RunData`) + metrics (`metricSeries`: total-reward / optimal-pct) + scaling math.
