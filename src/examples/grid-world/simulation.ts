@@ -1,5 +1,5 @@
 import { createRng, type RNG } from "@/shared/rl/rng";
-import { step, type Policy, type World } from "@/shared/rl/gridworld";
+import { ACTIONS, step, type Action, type Policy, type World } from "@/shared/rl/gridworld";
 import {
   computeValues,
   rmsError,
@@ -16,6 +16,9 @@ export interface SimConfig {
   gamma: number;
   n: number;
   seed: number;
+  policyType?: "deterministic" | "epsilon";
+  epsilon?: number;
+  controlMode?: "policy" | "manual";
 }
 
 export type StepRecord = Transition;
@@ -63,7 +66,15 @@ export function stepForward(state: SimState): { state: SimState; record: StepRec
     return { state: { ...state, pointer: state.pointer + 1 }, record };
   }
   const cell = currentCell(state);
-  const action = state.config.policy[cell];
+  let action = state.config.policy[cell];
+  const epsilon = state.config.epsilon ?? 0;
+  // Only consume the RNG for action selection when actually ε-soft, so deterministic
+  // runs keep the exact v1 RNG stream.
+  if ((state.config.policyType ?? "deterministic") === "epsilon" && epsilon > 0) {
+    if (state.rng.next() < epsilon) {
+      action = ACTIONS[state.rng.int(ACTIONS.length)];
+    }
+  }
   const res = step(state.config.world, cell, action, state.rng);
   // Loop guard: truncate runaway episodes (e.g. a hand-edited looping policy) as
   // terminal so MC/n-step can flush their delayed updates and the run stays finite.
@@ -145,4 +156,61 @@ export function errorSeries(
     }
   }
   return out;
+}
+
+/**
+ * Manual control: take `action` at the current cell, sampling its reward. Discards any
+ * rewound-future steps and appends the new step (loop-guard truncation applies as in
+ * stepForward). Used by Manual mode (arrow keys).
+ */
+export function chooseAction(
+  state: SimState,
+  action: Action,
+): { state: SimState; record: StepRecord } {
+  const cell = currentCell(state);
+  const res = step(state.config.world, cell, action, state.rng);
+  const truncated = episodeStepCount(state) + 1 >= MAX_EPISODE_STEPS;
+  const record: StepRecord = {
+    state: cell,
+    reward: res.reward,
+    nextState: res.next,
+    done: res.done || truncated,
+  };
+  const trajectory = state.trajectory.slice(0, state.pointer).concat(record);
+  return {
+    state: { ...state, trajectory, pointer: state.pointer + 1 },
+    record,
+  };
+}
+
+/** Unique states appearing in the applied trajectory prefix. */
+export function visitedStates(state: SimState): number[] {
+  const seen = new Set<number>();
+  for (let i = 0; i < state.pointer; i++) seen.add(state.trajectory[i].state);
+  return [...seen];
+}
+
+/**
+ * Undiscounted episode "score": `current` = sum of rewards since the last completed
+ * episode (the in-progress episode; 0 right after one ends); `last` = the total of the
+ * previous completed episode (or null if none).
+ */
+export function episodeReturn(state: SimState): { current: number; last: number | null } {
+  const traj = state.trajectory;
+  let current = 0;
+  let i = state.pointer - 1;
+  while (i >= 0 && !traj[i].done) {
+    current += traj[i].reward;
+    i -= 1;
+  }
+  let last: number | null = null;
+  if (i >= 0) {
+    last = traj[i].reward; // the done step itself
+    let j = i - 1;
+    while (j >= 0 && !traj[j].done) {
+      last += traj[j].reward;
+      j -= 1;
+    }
+  }
+  return { current, last };
 }
