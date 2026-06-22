@@ -42,8 +42,19 @@ function initValueFor(config: SimConfig): number {
   return config.policy === "optimistic" ? config.optimisticInit : 0;
 }
 
+function priorCountFor(config: SimConfig): number {
+  // Optimistic init treats the initial value as one prior observation, so the
+  // optimism persists into the running average instead of being overwritten on
+  // the first visit. Other policies use a plain sample average (no prior).
+  return config.policy === "optimistic" ? 1 : 0;
+}
+
 function estimatesAt(state: SimState): Estimates {
-  let est = createEstimates(state.config.restaurants.length, initValueFor(state.config));
+  let est = createEstimates(
+    state.config.restaurants.length,
+    initValueFor(state.config),
+    priorCountFor(state.config),
+  );
   for (let i = 0; i < state.pointer; i++) {
     const rec = state.trajectory[i];
     est = updateEstimate(est, rec.arm, rec.reward);

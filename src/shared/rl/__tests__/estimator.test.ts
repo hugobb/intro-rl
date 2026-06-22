@@ -29,4 +29,21 @@ describe("estimator", () => {
     expect(est.counts[0]).toBe(0);
     expect(next).not.toBe(est);
   });
+
+  it("treats the init value as a prior observation when priorCount > 0 (optimistic init)", () => {
+    let est = createEstimates(1, 4, 1);
+    est = updateEstimate(est, 0, 2);
+    // init value (4) is the first value in the average, not overwritten: (4 + 2) / 2
+    expect(est.q[0]).toBeCloseTo(3, 10);
+    expect(est.counts[0]).toBe(1); // real visit count, unaffected by priorCount
+    est = updateEstimate(est, 0, 2);
+    expect(est.q[0]).toBeCloseTo(8 / 3, 10); // (4 + 2 + 2) / 3
+    expect(est.counts[0]).toBe(2);
+  });
+
+  it("with priorCount 0, the first observation replaces the init value", () => {
+    let est = createEstimates(1, 4, 0);
+    est = updateEstimate(est, 0, 2);
+    expect(est.q[0]).toBe(2);
+  });
 });

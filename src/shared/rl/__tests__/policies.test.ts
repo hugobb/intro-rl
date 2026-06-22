@@ -3,7 +3,7 @@ import { selectArm, argmaxRandomTie } from "../policies";
 import { createRng } from "../rng";
 import type { Estimates } from "../estimator";
 
-const est = (q: number[]): Estimates => ({ q, counts: q.map(() => 0) });
+const est = (q: number[]): Estimates => ({ q, counts: q.map(() => 0), priorCount: 0 });
 
 describe("argmaxRandomTie", () => {
   it("returns the unique max index", () => {
