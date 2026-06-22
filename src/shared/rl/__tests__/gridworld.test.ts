@@ -1,0 +1,78 @@
+// src/shared/rl/__tests__/gridworld.test.ts
+import { describe, it, expect } from "vitest";
+import { createRng } from "@/shared/rl/rng";
+import {
+  nextCell,
+  step,
+  expectedReward,
+  isTerminal,
+  type World,
+} from "@/shared/rl/gridworld";
+
+// 1x3 corridor: [start, road, restaurant], policy moves right.
+function corridor(): World {
+  return {
+    rows: 1,
+    cols: 3,
+    cells: ["start", "road", "restaurant"],
+    start: 0,
+    reward: { x1: 0.5, x2: 0.3, r1: 4, r2: 6, r3: 4, r4: 10, stepCost: 0 },
+  };
+}
+
+describe("nextCell", () => {
+  it("moves within bounds", () => {
+    expect(nextCell(corridor(), 0, "right")).toBe(1);
+  });
+  it("stays put when moving off the board", () => {
+    expect(nextCell(corridor(), 0, "left")).toBe(0);
+    expect(nextCell(corridor(), 0, "up")).toBe(0);
+  });
+  it("stays put when moving into a wall", () => {
+    const w: World = { ...corridor(), cells: ["start", "wall", "restaurant"] };
+    expect(nextCell(w, 0, "right")).toBe(0);
+  });
+});
+
+describe("step", () => {
+  it("marks done when entering the restaurant and pays r4", () => {
+    const r = step(corridor(), 1, "right", createRng(1));
+    expect(r.next).toBe(2);
+    expect(r.done).toBe(true);
+    expect(r.reward).toBe(10);
+  });
+  it("samples the road hazard: -r1 with prob x1, else 0", () => {
+    const w = corridor();
+    let accidents = 0;
+    const rng = createRng(7);
+    for (let i = 0; i < 2000; i++) {
+      // entering cell 1 (road) from cell 0
+      const r = step(w, 0, "right", rng);
+      if (r.reward === -w.reward.r1) accidents++;
+      else expect(r.reward).toBe(0);
+    }
+    expect(accidents / 2000).toBeGreaterThan(0.4);
+    expect(accidents / 2000).toBeLessThan(0.6);
+  });
+});
+
+describe("expectedReward", () => {
+  it("is the expected reward of the ENTERED cell", () => {
+    const w = corridor();
+    // entering road (cell 1): -x1*r1 = -0.5*4 = -2
+    expect(expectedReward(w, 0, "right")).toBeCloseTo(-2);
+    // entering restaurant (cell 2): r4 = 10
+    expect(expectedReward(w, 1, "right")).toBeCloseTo(10);
+  });
+  it("subtracts stepCost", () => {
+    const w: World = { ...corridor(), reward: { ...corridor().reward, stepCost: 1 } };
+    expect(expectedReward(w, 1, "right")).toBeCloseTo(9); // 10 - 1
+  });
+});
+
+describe("isTerminal", () => {
+  it("is true only for restaurant cells", () => {
+    expect(isTerminal(corridor(), 2)).toBe(true);
+    expect(isTerminal(corridor(), 0)).toBe(false);
+  });
+});
