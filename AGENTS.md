@@ -25,11 +25,24 @@ First example: a multi-armed bandit ("best poutine in Montréal").
   - `estimator.ts` — incremental sample-average estimates (`Q ← Q + (1/n)(R − Q)`).
   - `reward.ts` — categorical reward sampling + `trueMean`.
   - `policies.ts` — `selectArm` / `selectArmWithReason` (reports explore vs exploit) for random/greedy/optimistic/epsilon-greedy.
+  - `gridworld.ts` — grid MDP: cell/action/policy types, `step` (sampled),
+    `expectedReward`, `reachableStates`, `solveV` (analytical V via iterative policy
+    evaluation).
+  - `td-estimators.ts` — MC / TD(0) / n-step policy-evaluation updates
+    (`computeValues`) + `rmsError`. Pure functions over a `Transition[]`.
 - `src/examples/multi-armed-bandit/`:
   - `simulation.ts` — trajectory state machine (step/rewind/replay). **Start here** for sim logic.
   - `scene.ts` — canvas layout math (`computeLayout`, `characterX`) + `drawScene` renderer.
   - `restaurants.ts` — default data and constants.
   - `BanditExample.tsx` — page composition + `requestAnimationFrame` loop.
+- `src/examples/grid-world/`:
+  - `world.ts` — default ASCII map, default policy, constants.
+  - `simulation.ts` — trajectory state machine; `derive` recomputes `V(s)` from the
+    trajectory prefix so MC/n-step delayed updates rewind correctly. **Start here.**
+  - `scene.ts` — grid layout math (`computeGridLayout`, `cellRect`, `cellAtPoint`,
+    `heatColor`) + `drawScene` (heatmap, character, policy arrows).
+  - `MethodTabs.tsx` / `StateValueTable.tsx` / `ConvergenceChart.tsx` — UI pieces.
+  - `GridWorldExample.tsx` — page composition + rAF loop + policy editor (click to edit).
 - `src/shared/ui/` — reusable React widgets (tabs, controls, trackers, settings, event log).
   - `chart.ts` — chart data model (`RunData`) + metrics (`metricSeries`: total-reward / optimal-pct) + scaling math.
   - `RewardChart.tsx` — multi-run cumulative chart with a metric selector and a select/delete legend.
@@ -55,6 +68,10 @@ First example: a multi-armed bandit ("best poutine in Montréal").
 - Styling is Tailwind utility classes; the palette + pixel font are `@theme` tokens in
   `src/styles.css` (`bg-bg`, `text-ink`, `font-pixel`, …). Base element styles live in `@layer base`.
 - Tests are co-located in `__tests__/` next to the code.
+- The grid world evaluates a **fixed but editable deterministic policy** (`Policy` =
+  action per cell, plain data). `solveV` gives exact ground-truth `V(s)`; the estimators
+  converge toward it. The policy-as-data design is intended to support a future
+  policy-iteration (control) demo that reuses the same world, stepper, and solver.
 
 ## Adding an example
 

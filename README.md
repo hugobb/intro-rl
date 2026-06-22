@@ -16,6 +16,18 @@ the value estimates evolve:
   editable).
 - **ε-Greedy** — exploits the best estimate, explores with probability ε (editable).
 
+## Second demo: Grid World — Policy Evaluation
+
+Guide a character across town to **Chez Claudette**, dodging a road (accident risk
+off the crosswalk) and a manhole, grabbing a poutine on the way. The policy is fixed
+but **editable** — toggle "Show policy" and click cells to change the arrows. Watch the
+state-value function `V(s)` get estimated three ways and converge to the exact analytical
+values:
+
+- **Monte Carlo** — update from full episode returns at episode end (no bootstrapping).
+- **TD(0)** — update every step, bootstrapping on the next state's estimate.
+- **n-step TD** — `n` real rewards then bootstrap; `n=1` is TD(0), large `n` approaches MC.
+
 ## Quickstart
 
 ```bash
