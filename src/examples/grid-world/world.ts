@@ -88,3 +88,7 @@ export const DEFAULT_SEED = 12345;
 
 export const SCENE_W = 560;
 export const SCENE_H = 480;
+
+export const DEFAULT_EPSILON = 0.1;
+export const DEFAULT_POLICY_TYPE = "deterministic" as const;
+export const DEFAULT_CONTROL_MODE = "policy" as const;

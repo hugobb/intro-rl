@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  allStates,
+  computeQ,
   reachableStates,
   solveV,
   type Action,
@@ -18,24 +20,38 @@ import { RUN_COLORS } from "@/shared/ui/chart";
 import { MethodTabs, METHOD_LABELS } from "./MethodTabs";
 import { StateValueTable } from "./StateValueTable";
 import { GridSettings } from "./GridSettings";
-import { ConvergenceChart, type ChartLine } from "./ConvergenceChart";
+import {
+  ConvergenceChart,
+  type ChartLine,
+  type RmsMetric,
+} from "./ConvergenceChart";
+import { ValueViewTabs, type ValueView } from "./ValueViewTabs";
+import { PolicyTypeTabs, type PolicyType } from "./PolicyTypeTabs";
+import { ControlModeTabs, type ControlMode } from "./ControlModeTabs";
+import { ReturnTracker } from "./ReturnTracker";
 import { computeGridLayout, cellAtPoint, drawScene, type SceneState } from "./scene";
 import {
+  chooseAction,
   createSim,
   derive,
+  episodeReturn,
   errorSeries,
   runEpisode,
   stepBack,
   stepForward,
+  visitedStates,
   currentCell,
   type SimConfig,
   type SimState,
 } from "./simulation";
 import {
   DEFAULT_ALPHA,
+  DEFAULT_CONTROL_MODE,
+  DEFAULT_EPSILON,
   DEFAULT_GAMMA,
   DEFAULT_N,
   DEFAULT_POLICY,
+  DEFAULT_POLICY_TYPE,
   DEFAULT_SEED,
   DEFAULT_WORLD,
   SCENE_H,
@@ -48,12 +64,29 @@ const ACTION_CYCLE: Record<Action, Action> = {
   left: "up",
   up: "right",
 };
+const KEY_TO_ACTION: Record<string, Action> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+};
 const BASE_STEP_MS = 320;
+const EFFECT_MS = 500;
 
 interface Anim {
   fromCell: number;
   toCell: number;
-  progress: number; // 0..1; 1 = settled
+  progress: number;
+}
+type Effect = { kind: "crash" | "fall"; cell: number; progress: number } | null;
+type RewardPop = { value: number; cell: number; progress: number } | null;
+
+interface SavedRun {
+  label: string;
+  color: string;
+  rmsPath: number[];
+  rmsVisited: number[];
+  rmsAll: number[];
 }
 
 export function GridWorldExample() {
@@ -64,6 +97,10 @@ export function GridWorldExample() {
   const [world, setWorld] = useState<World>(DEFAULT_WORLD);
   const [policy, setPolicy] = useState<Policy>(DEFAULT_POLICY);
   const [seed, setSeed] = useState(DEFAULT_SEED);
+  const [policyType, setPolicyType] = useState<PolicyType>(DEFAULT_POLICY_TYPE);
+  const [epsilon, setEpsilon] = useState(DEFAULT_EPSILON);
+  const [controlMode, setControlMode] = useState<ControlMode>(DEFAULT_CONTROL_MODE);
+  const [valueView, setValueView] = useState<ValueView>("v");
   const [showPolicy, setShowPolicy] = useState(true);
   const [showTrue, setShowTrue] = useState(false);
   const [showLog, setShowLog] = useState(true);
@@ -72,90 +109,118 @@ export function GridWorldExample() {
   const [speed, setSpeed] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const [savedRuns, setSavedRuns] = useState<ChartLine[]>([]);
+  const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
+  const [chartMetric, setChartMetric] = useState<RmsMetric>("path");
   const runIdRef = useRef(0);
 
   const config: SimConfig = useMemo(
-    () => ({ world, policy, method, alpha, gamma, n, seed }),
-    [world, policy, method, alpha, gamma, n, seed],
+    () => ({ world, policy, method, alpha, gamma, n, seed, policyType, epsilon, controlMode }),
+    [world, policy, method, alpha, gamma, n, seed, policyType, epsilon, controlMode],
   );
   const simRef = useRef<SimState>(createSim(config));
   const animRef = useRef<Anim>({ fromCell: world.start, toCell: world.start, progress: 1 });
+  const effectRef = useRef<Effect>(null);
+  const popRef = useRef<RewardPop>(null);
   const [, forceTick] = useState(0);
   const rerender = useCallback(() => forceTick((t) => t + 1), []);
 
-  const vTrue = useMemo(() => solveV(world, policy, gamma), [world, policy, gamma]);
+  const vTrue = useMemo(
+    () => solveV(world, policy, gamma, policyType === "epsilon" ? epsilon : 0),
+    [world, policy, gamma, policyType, epsilon],
+  );
   const states = useMemo(() => reachableStates(world, policy), [world, policy]);
   const stateLabels = useMemo(
     () => states.map((s) => `r${Math.floor(s / world.cols)}c${s % world.cols}`),
     [states, world.cols],
   );
-  const maxAbs = useMemo(
-    () => Math.max(1, ...vTrue.map((x) => Math.abs(x))),
-    [vTrue],
-  );
+  const maxAbs = useMemo(() => Math.max(1, ...vTrue.map((x) => Math.abs(x))), [vTrue]);
 
-  const snapshotRun = useCallback(
-    (sim: SimState) => {
-      if (sim.pointer === 0) return;
-      const series = errorSeries(sim, vTrue, states);
-      if (series.length < 2) return; // no completed episode
-      const id = runIdRef.current++;
-      setSavedRuns((prev) => [
-        ...prev,
-        {
-          label: `Run ${id + 1} · ${METHOD_LABELS[sim.config.method]}`,
-          color: RUN_COLORS[id % RUN_COLORS.length],
-          series,
-        },
-      ]);
-    },
-    [vTrue, states],
-  );
+  // Snapshot the previous run from ITS OWN config (no stale closure on page state).
+  const snapshotRun = useCallback((sim: SimState) => {
+    if (sim.pointer === 0) return;
+    const c = sim.config;
+    const vT = solveV(c.world, c.policy, c.gamma, c.policyType === "epsilon" ? (c.epsilon ?? 0) : 0);
+    const rmsPath = errorSeries(sim, vT, reachableStates(c.world, c.policy));
+    if (rmsPath.length < 2) return;
+    const id = runIdRef.current++;
+    setSavedRuns((prev) => [
+      ...prev,
+      {
+        label: `Run ${id + 1} · ${METHOD_LABELS[c.method]}`,
+        color: RUN_COLORS[id % RUN_COLORS.length],
+        rmsPath,
+        rmsVisited: errorSeries(sim, vT, visitedStates(sim)),
+        rmsAll: errorSeries(sim, vT, allStates(c.world)),
+      },
+    ]);
+  }, []);
 
-  // auto-reset on any config change (method / params / policy / world / seed)
   useEffect(() => {
     snapshotRun(simRef.current);
     simRef.current = createSim(config);
     animRef.current = { fromCell: config.world.start, toCell: config.world.start, progress: 1 };
+    effectRef.current = null;
+    popRef.current = null;
     setLog([]);
     setIsPlaying(false);
     rerender();
-    // snapshotRun intentionally omitted: it closes over the PREVIOUS vTrue/states,
-    // which is what we want when snapshotting the run we are about to discard.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, rerender]);
+  }, [config, rerender, snapshotRun]);
 
   const derived = derive(simRef.current);
+  const ret = episodeReturn(simRef.current);
 
-  const liveRun: ChartLine | null = useMemo(() => {
-    if (simRef.current.pointer === 0) return null;
-    const series = errorSeries(simRef.current, vTrue, states);
-    if (series.length < 2) return null;
-    return { label: `${METHOD_LABELS[method]} (current)`, color: PALETTE.accent, series };
-  }, [vTrue, states, method, derived.episode]);
+  const liveSeries = useCallback(
+    (metric: RmsMetric): number[] => {
+      const sim = simRef.current;
+      const set =
+        metric === "path"
+          ? states
+          : metric === "visited"
+            ? visitedStates(sim)
+            : allStates(world);
+      return errorSeries(sim, vTrue, set);
+    },
+    [states, vTrue, world],
+  );
 
-  const chartLines: ChartLine[] = liveRun ? [...savedRuns, liveRun] : savedRuns;
+  const chartLines: ChartLine[] = useMemo(() => {
+    const pick = (r: SavedRun) =>
+      chartMetric === "path" ? r.rmsPath : chartMetric === "visited" ? r.rmsVisited : r.rmsAll;
+    const saved = savedRuns.map((r) => ({ label: r.label, color: r.color, series: pick(r) }));
+    const live = liveSeries(chartMetric);
+    if (live.length < 2) return saved;
+    return [
+      ...saved,
+      { label: `${METHOD_LABELS[method]} (current)`, color: PALETTE.accent, series: live },
+    ];
+    // derived.episode keeps the live line current as episodes complete
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedRuns, chartMetric, liveSeries, method, derived.episode]);
+
+  const applyOutcome = useCallback(
+    (record: { state: number; reward: number; nextState: number; done: boolean }) => {
+      animRef.current = { fromCell: record.state, toCell: record.nextState, progress: 0 };
+      const type = world.cells[record.nextState];
+      const penalty = record.reward < -world.reward.stepCost - 1e-9;
+      if (type === "road" && penalty) effectRef.current = { kind: "crash", cell: record.nextState, progress: 0 };
+      else if (type === "manhole" && penalty) effectRef.current = { kind: "fall", cell: record.nextState, progress: 0 };
+      if (record.reward !== 0) popRef.current = { value: record.reward, cell: record.nextState, progress: 0 };
+      setLog((l) => [...l, `Step ${simRef.current.pointer} · ${stepSummary(record.reward, record.done)}`]);
+      rerender();
+    },
+    [world, rerender],
+  );
 
   const commitStep = useCallback(() => {
     const { state, record } = stepForward(simRef.current);
     simRef.current = state;
-    animRef.current = { fromCell: record.state, toCell: record.nextState, progress: 0 };
-    setLog((l) => [
-      ...l,
-      `Step ${state.pointer} · ${stepSummary(record.reward, record.done)}`,
-    ]);
-    rerender();
-  }, [rerender]);
+    applyOutcome(record);
+  }, [applyOutcome]);
 
   const handleEpisode = useCallback(() => {
     setIsPlaying(false);
     simRef.current = runEpisode(simRef.current);
-    animRef.current = {
-      fromCell: world.start,
-      toCell: currentCell(simRef.current),
-      progress: 1,
-    };
+    animRef.current = { fromCell: world.start, toCell: currentCell(simRef.current), progress: 1 };
     setLog((l) => [...l, `— episode ${derive(simRef.current).episode} complete —`]);
     rerender();
   }, [rerender, world.start]);
@@ -192,7 +257,28 @@ export function GridWorldExample() {
     [showPolicy, world],
   );
 
-  // animation + auto-step loop
+  // Manual mode: arrow keys drive the character.
+  useEffect(() => {
+    if (controlMode !== "manual") return;
+    const onKey = (e: KeyboardEvent) => {
+      const a = KEY_TO_ACTION[e.key];
+      if (!a) return;
+      e.preventDefault();
+      setIsPlaying(false);
+      const { state, record } = chooseAction(simRef.current, a);
+      simRef.current = state;
+      applyOutcome(record);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [controlMode, applyOutcome]);
+
+  const qTrue = useMemo(() => computeQ(world, vTrue, gamma), [world, vTrue, gamma]);
+  const qMaxAbs = useMemo(
+    () => Math.max(1, ...qTrue.flat().map((x) => Math.abs(x))),
+    [qTrue],
+  );
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastTsRef = useRef<number | null>(null);
   useEffect(() => {
@@ -205,8 +291,16 @@ export function GridWorldExample() {
       const a = animRef.current;
       if (a.progress < 1) {
         a.progress = Math.min(1, a.progress + dt / (BASE_STEP_MS / speed));
-      } else if (isPlaying) {
+      } else if (isPlaying && controlMode === "policy") {
         commitStep();
+      }
+      if (effectRef.current) {
+        effectRef.current.progress += dt / EFFECT_MS;
+        if (effectRef.current.progress >= 1) effectRef.current = null;
+      }
+      if (popRef.current) {
+        popRef.current.progress += dt / (EFFECT_MS + 100);
+        if (popRef.current.progress >= 1) popRef.current = null;
       }
 
       const canvas = canvasRef.current;
@@ -227,6 +321,11 @@ export function GridWorldExample() {
             toCell: cur.toCell,
             progress: cur.progress,
             maxAbs,
+            valueView,
+            q: valueView === "q" ? computeQ(world, derive(simRef.current).v, gamma) : undefined,
+            qMaxAbs,
+            effect: effectRef.current,
+            rewardPop: popRef.current,
           };
           drawScene(ctx, scene);
         }
@@ -238,9 +337,8 @@ export function GridWorldExample() {
       cancelAnimationFrame(raf);
       lastTsRef.current = null;
     };
-  }, [speed, isPlaying, commitStep, world, policy, showPolicy, maxAbs]);
+  }, [speed, isPlaying, controlMode, commitStep, world, policy, showPolicy, maxAbs, valueView, qMaxAbs, gamma]);
 
-  // Close the settings dialog on Escape.
   useEffect(() => {
     if (!showSettings) return;
     const onKey = (e: KeyboardEvent) => {
@@ -250,6 +348,8 @@ export function GridWorldExample() {
     return () => window.removeEventListener("keydown", onKey);
   }, [showSettings]);
 
+  const manual = controlMode === "manual";
+
   return (
     <div className="mx-auto max-w-[1200px] p-4">
       <p>
@@ -258,6 +358,19 @@ export function GridWorldExample() {
       <h1 className="text-[16px]">Grid World: Policy Evaluation</h1>
 
       <MethodTabs value={method} onChange={setMethod} />
+
+      <div className="my-3 flex flex-wrap items-center gap-3">
+        <ValueViewTabs value={valueView} onChange={setValueView} />
+        <ControlModeTabs value={controlMode} onChange={setControlMode} />
+        {!manual && <PolicyTypeTabs value={policyType} onChange={setPolicyType} />}
+        {!manual && policyType === "epsilon" && (
+          <label className="flex items-center gap-1.5">
+            ε = {epsilon.toFixed(2)}
+            <input type="range" min="0" max="1" step="0.01" value={epsilon}
+              onChange={(e) => setEpsilon(Number(e.target.value))} />
+          </label>
+        )}
+      </div>
 
       <div className="my-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-1.5">
@@ -287,10 +400,14 @@ export function GridWorldExample() {
         </button>
       </div>
 
-      {showPolicy && (
-        <p className="mb-2 text-[10px] text-accent">
-          Click a cell to change its action (→ ↓ ← ↑).
-        </p>
+      {manual ? (
+        <p className="mb-2 text-[10px] text-accent">Use arrow keys to move.</p>
+      ) : (
+        showPolicy && (
+          <p className="mb-2 text-[10px] text-accent">
+            Click a cell to change its action (→ ↓ ← ↑).
+          </p>
+        )
       )}
 
       <div className="my-3 flex items-stretch gap-3">
@@ -310,6 +427,7 @@ export function GridWorldExample() {
             onClick={handleCanvasClick}
             className="block h-auto w-full"
           />
+          <ReturnTracker current={ret.current} last={ret.last} />
           <div className="flex flex-wrap justify-between gap-4">
             <div className="flex flex-wrap gap-1.5">
               <PlaybackControls
@@ -321,17 +439,24 @@ export function GridWorldExample() {
                 }}
                 onTogglePlay={() => setIsPlaying((p) => !p)}
                 onReset={handleReset}
+                manual={manual}
               />
-              <button onClick={handleEpisode} aria-label="Run one episode">
-                Episode ▶▶
-              </button>
+              {!manual && (
+                <button onClick={handleEpisode} aria-label="Run one episode">
+                  Episode ▶▶
+                </button>
+              )}
             </div>
-            <SpeedSelector value={speed} onChange={setSpeed} />
+            {!manual && <SpeedSelector value={speed} onChange={setSpeed} />}
           </div>
         </div>
         {showChart && (
           <div className="min-w-0 shrink basis-[320px]">
-            <ConvergenceChart lines={chartLines} />
+            <ConvergenceChart
+              lines={chartLines}
+              metric={chartMetric}
+              onMetricChange={setChartMetric}
+            />
           </div>
         )}
       </div>
