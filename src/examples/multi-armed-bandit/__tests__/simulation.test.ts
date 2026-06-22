@@ -5,6 +5,7 @@ import {
   stepForward,
   stepBack,
   reset,
+  cumulativeReward,
   type SimConfig,
   type Restaurant,
 } from "../simulation";
@@ -90,5 +91,30 @@ describe("simulation", () => {
     // same seed → same first step as a fresh sim
     const fresh = stepForward(createSim(cfg())).state;
     expect(stepForward(r).state.trajectory[0]).toEqual(fresh.trajectory[0]);
+  });
+
+  it("records a selection reason on each step", () => {
+    expect(stepForward(createSim(cfg({ policy: "greedy" }))).record.reason).toBe("exploit");
+    expect(stepForward(createSim(cfg({ policy: "random" }))).record.reason).toBe("explore");
+  });
+
+  it("cumulativeReward starts at [0] and accumulates each step's reward", () => {
+    let s = createSim(cfg());
+    expect(cumulativeReward(s)).toEqual([0]);
+    for (let i = 0; i < 4; i++) s = stepForward(s).state;
+    const cum = cumulativeReward(s);
+    expect(cum).toHaveLength(5); // [0, ...4 steps]
+    expect(cum[0]).toBe(0);
+    for (let i = 1; i < cum.length; i++) {
+      expect(cum[i] - cum[i - 1]).toBe(s.trajectory[i - 1].reward);
+    }
+    expect(cum[cum.length - 1]).toBe(s.trajectory.reduce((a, r) => a + r.reward, 0));
+  });
+
+  it("cumulativeReward follows the pointer (rewind shortens it)", () => {
+    let s = createSim(cfg());
+    for (let i = 0; i < 4; i++) s = stepForward(s).state;
+    s = stepBack(s);
+    expect(cumulativeReward(s)).toHaveLength(4); // [0, ...3 steps]
   });
 });

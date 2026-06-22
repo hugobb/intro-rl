@@ -5,7 +5,11 @@ import {
   updateEstimate,
   type Estimates,
 } from "@/shared/rl/estimator";
-import { selectArm, type PolicyKind } from "@/shared/rl/policies";
+import {
+  selectArmWithReason,
+  type PolicyKind,
+  type SelectionReason,
+} from "@/shared/rl/policies";
 
 export interface Restaurant {
   name: string;
@@ -23,6 +27,7 @@ export interface SimConfig {
 export interface StepRecord {
   arm: number;
   reward: number;
+  reason: SelectionReason;
 }
 
 export interface SimState {
@@ -77,9 +82,14 @@ export function stepForward(state: SimState): { state: SimState; record: StepRec
     return { state: { ...state, pointer: state.pointer + 1 }, record };
   }
   const est = estimatesAt(state);
-  const arm = selectArm(state.config.policy, est, state.config.epsilon, state.rng);
+  const { arm, reason } = selectArmWithReason(
+    state.config.policy,
+    est,
+    state.config.epsilon,
+    state.rng,
+  );
   const reward = sampleRating(state.config.restaurants[arm].dist, state.rng);
-  const record: StepRecord = { arm, reward };
+  const record: StepRecord = { arm, reward, reason };
   return {
     state: {
       ...state,
@@ -103,4 +113,18 @@ export function reset(state: SimState, seed?: number): SimState {
     pointer: 0,
     rng: createRng(newSeed),
   };
+}
+
+/**
+ * Cumulative reward over applied steps: returns [0, r1, r1+r2, ...] up to the
+ * current pointer. Index = step number; value = total reward earned by that step.
+ */
+export function cumulativeReward(state: SimState): number[] {
+  const out: number[] = [0];
+  let sum = 0;
+  for (let i = 0; i < state.pointer; i++) {
+    sum += state.trajectory[i].reward;
+    out.push(sum);
+  }
+  return out;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectArm, argmaxRandomTie } from "../policies";
+import { selectArm, selectArmWithReason, argmaxRandomTie } from "../policies";
 import { createRng } from "../rng";
 import type { Estimates } from "../estimator";
 
@@ -50,5 +50,34 @@ describe("selectArm", () => {
     const seen = new Set<number>();
     for (let i = 0; i < 300; i++) seen.add(selectArm("epsilon-greedy", est([1, 9, 2]), 1, rng));
     expect([...seen].sort()).toEqual([0, 1, 2]);
+  });
+});
+
+describe("selectArmWithReason", () => {
+  it("random policy always explores", () => {
+    const rng = createRng(2);
+    for (let i = 0; i < 20; i++) {
+      expect(selectArmWithReason("random", est([1, 9, 2]), 0, rng).reason).toBe("explore");
+    }
+  });
+
+  it("greedy and optimistic always exploit", () => {
+    const rng = createRng(2);
+    expect(selectArmWithReason("greedy", est([1, 9, 2]), 0, rng).reason).toBe("exploit");
+    expect(selectArmWithReason("optimistic", est([1, 9, 2]), 0, rng).reason).toBe("exploit");
+  });
+
+  it("epsilon-greedy exploits at epsilon=0 and explores at epsilon=1", () => {
+    const rng = createRng(5);
+    expect(selectArmWithReason("epsilon-greedy", est([1, 9, 2]), 0, rng).reason).toBe("exploit");
+    expect(selectArmWithReason("epsilon-greedy", est([1, 9, 2]), 1, rng).reason).toBe("explore");
+  });
+
+  it("selectArm consumes the RNG identically to selectArmWithReason", () => {
+    const a = createRng(7);
+    const b = createRng(7);
+    expect(selectArm("epsilon-greedy", est([1, 9, 2]), 0.3, a)).toBe(
+      selectArmWithReason("epsilon-greedy", est([1, 9, 2]), 0.3, b).arm,
+    );
   });
 });

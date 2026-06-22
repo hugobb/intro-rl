@@ -56,3 +56,19 @@ canvas { image-rendering: pixelated; width: 100%; height: auto; background: #0f1
 .settings-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 .settings-row input { width: 60px; }
 .toggle { display: flex; gap: 4px; align-items: center; }
+
+/* 3-column stage: event log (left) · animation (center) · reward chart (right) */
+.bandit-stage { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; margin: 12px 0; }
+.bandit-center { flex: 2 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.bandit-stage .event-log { flex: 1 1 200px; max-width: 260px; margin-top: 0; max-height: 460px; }
+.reward-chart { flex: 1 1 320px; max-width: 420px; background: var(--panel); padding: 8px; }
+.reward-chart h3 { margin: 0 0 6px; font-size: 11px; }
+.reward-chart canvas { width: 100%; height: auto; background: var(--bg); }
+.reward-chart__legend { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; max-height: 130px; overflow: auto; }
+.reward-chart__legend li { display: flex; align-items: center; gap: 6px; }
+.reward-chart__legend li.selected { outline: 2px solid var(--accent); }
+.reward-chart__empty { color: var(--mid); font-size: 9px; }
+.legend-row { flex: 1; display: flex; align-items: center; gap: 6px; background: transparent; border: none; color: var(--ink); padding: 2px 4px; cursor: pointer; text-align: left; font-size: 9px; }
+.legend-row:hover { background: var(--bg); color: var(--ink); }
+.legend-del { background: var(--bad); border: none; color: var(--ink); padding: 0 6px; cursor: pointer; }
+.swatch { width: 10px; height: 10px; flex: 0 0 auto; display: inline-block; border: 1px solid var(--ink); }

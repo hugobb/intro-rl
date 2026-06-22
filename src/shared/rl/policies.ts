@@ -3,6 +3,14 @@ import type { Estimates } from "./estimator";
 
 export type PolicyKind = "random" | "greedy" | "optimistic" | "epsilon-greedy";
 
+/** Why an arm was chosen: a random "explore" pick, or the best-estimate "exploit" pick. */
+export type SelectionReason = "explore" | "exploit";
+
+export interface Selection {
+  arm: number;
+  reason: SelectionReason;
+}
+
 /** Argmax with uniform random tie-breaking among the maxima. */
 export function argmaxRandomTie(values: number[], rng: RNG): number {
   let best = -Infinity;
@@ -18,18 +26,31 @@ export function argmaxRandomTie(values: number[], rng: RNG): number {
   return ties[rng.int(ties.length)];
 }
 
+/**
+ * Select an arm and report whether it was an exploratory (random) pick or an
+ * exploitative (best-estimate) pick. RNG consumption is identical to selectArm.
+ */
+export function selectArmWithReason(
+  kind: PolicyKind,
+  est: Estimates,
+  epsilon: number,
+  rng: RNG,
+): Selection {
+  const n = est.q.length;
+  if (kind === "random") return { arm: rng.int(n), reason: "explore" };
+  if (kind === "epsilon-greedy") {
+    if (rng.next() < epsilon) return { arm: rng.int(n), reason: "explore" };
+    return { arm: argmaxRandomTie(est.q, rng), reason: "exploit" };
+  }
+  // greedy and optimistic share selection logic
+  return { arm: argmaxRandomTie(est.q, rng), reason: "exploit" };
+}
+
 export function selectArm(
   kind: PolicyKind,
   est: Estimates,
   epsilon: number,
   rng: RNG,
 ): number {
-  const n = est.q.length;
-  if (kind === "random") return rng.int(n);
-  if (kind === "epsilon-greedy") {
-    if (rng.next() < epsilon) return rng.int(n);
-    return argmaxRandomTie(est.q, rng);
-  }
-  // greedy and optimistic share selection logic
-  return argmaxRandomTie(est.q, rng);
+  return selectArmWithReason(kind, est, epsilon, rng).arm;
 }
