@@ -113,3 +113,49 @@ export function expectedReward(world: World, cell: number, action: Action): numb
   const entryReward = next === cell ? 0 : enterRewardExpected(world, next);
   return entryReward - world.reward.stepCost;
 }
+
+/** Non-terminal cells visited by following `policy` from start, no repeats. */
+export function reachableStates(world: World, policy: Policy): number[] {
+  const seen = new Set<number>();
+  const order: number[] = [];
+  let cell = world.start;
+  const cap = world.rows * world.cols * 4;
+  let guard = 0;
+  while (!isTerminal(world, cell) && !seen.has(cell) && guard < cap) {
+    seen.add(cell);
+    order.push(cell);
+    cell = nextCell(world, cell, policy[cell]);
+    guard += 1;
+  }
+  return order;
+}
+
+/**
+ * Exact V(s) for a deterministic policy via iterative policy evaluation
+ * (repeated Bellman backups to tolerance). For gamma < 1 this converges for any
+ * policy; it is the analytical-ground-truth reference for the demo. V is 0 for
+ * walls and terminal cells.
+ */
+export function solveV(
+  world: World,
+  policy: Policy,
+  gamma: number,
+  tol = 1e-9,
+  maxIters = 100000,
+): number[] {
+  const n = world.cells.length;
+  const V = new Array<number>(n).fill(0);
+  for (let iter = 0; iter < maxIters; iter++) {
+    let delta = 0;
+    for (let s = 0; s < n; s++) {
+      if (world.cells[s] === "wall" || isTerminal(world, s)) continue;
+      const a = policy[s];
+      const sp = nextCell(world, s, a);
+      const v = expectedReward(world, s, a) + gamma * (isTerminal(world, sp) ? 0 : V[sp]);
+      delta = Math.max(delta, Math.abs(v - V[s]));
+      V[s] = v;
+    }
+    if (delta < tol) break;
+  }
+  return V;
+}

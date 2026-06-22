@@ -6,7 +6,10 @@ import {
   step,
   expectedReward,
   isTerminal,
+  reachableStates,
+  solveV,
   type World,
+  type Policy,
 } from "@/shared/rl/gridworld";
 
 // 1x3 corridor: [start, road, restaurant], policy moves right.
@@ -74,6 +77,64 @@ describe("isTerminal", () => {
   it("is true only for restaurant cells", () => {
     expect(isTerminal(corridor(), 2)).toBe(true);
     expect(isTerminal(corridor(), 0)).toBe(false);
+  });
+});
+
+describe("solveV", () => {
+  it("solves a 3-cell corridor with discounting", () => {
+    // [start, empty, restaurant], all "right", r4=10, gamma=0.9
+    const w: World = {
+      rows: 1,
+      cols: 3,
+      cells: ["start", "empty", "restaurant"],
+      start: 0,
+      reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 10, stepCost: 0 },
+    };
+    const pol: Policy = ["right", "right", "right"];
+    const V = solveV(w, pol, 0.9);
+    expect(V[2]).toBeCloseTo(0); // terminal
+    expect(V[1]).toBeCloseTo(10); // 10 + 0.9*0
+    expect(V[0]).toBeCloseTo(9); // 0 + 0.9*10
+  });
+
+  it("accounts for expected hazard cost (gamma=1)", () => {
+    // [start, road, restaurant], x1=0.5 r1=4 r4=10
+    const w: World = {
+      rows: 1,
+      cols: 3,
+      cells: ["start", "road", "restaurant"],
+      start: 0,
+      reward: { x1: 0.5, x2: 0, r1: 4, r2: 0, r3: 0, r4: 10, stepCost: 0 },
+    };
+    const pol: Policy = ["right", "right", "right"];
+    const V = solveV(w, pol, 1);
+    expect(V[1]).toBeCloseTo(10);
+    expect(V[0]).toBeCloseTo(8); // -2 (expected road) + 10
+  });
+});
+
+describe("reachableStates", () => {
+  it("returns the policy chain up to (excluding) the terminal", () => {
+    const w: World = {
+      rows: 1,
+      cols: 3,
+      cells: ["start", "empty", "restaurant"],
+      start: 0,
+      reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 0, stepCost: 0 },
+    };
+    expect(reachableStates(w, ["right", "right", "right"])).toEqual([0, 1]);
+  });
+  it("terminates on a looping policy without hanging", () => {
+    const w: World = {
+      rows: 1,
+      cols: 3,
+      cells: ["start", "empty", "empty"],
+      start: 0,
+      reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 0, stepCost: 0 },
+    };
+    // 0 -> right -> 1 -> left -> 0 -> ... (loop)
+    const out = reachableStates(w, ["right", "left", "left"]);
+    expect(out).toEqual([0, 1]); // no repeats, no infinite loop
   });
 });
 
