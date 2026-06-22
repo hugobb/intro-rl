@@ -102,12 +102,14 @@ export function step(
   rng: RNG,
 ): StepResult {
   const next = nextCell(world, cell, action);
-  const reward = enterRewardSample(world, next, rng) - world.reward.stepCost;
+  const entryReward = next === cell ? 0 : enterRewardSample(world, next, rng);
+  const reward = entryReward - world.reward.stepCost;
   return { next, reward, done: isTerminal(world, next) };
 }
 
 /** Expected immediate reward of taking `action` in `cell` (for the analytical solver). */
 export function expectedReward(world: World, cell: number, action: Action): number {
   const next = nextCell(world, cell, action);
-  return enterRewardExpected(world, next) - world.reward.stepCost;
+  const entryReward = next === cell ? 0 : enterRewardExpected(world, next);
+  return entryReward - world.reward.stepCost;
 }

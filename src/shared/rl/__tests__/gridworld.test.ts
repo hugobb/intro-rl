@@ -76,3 +76,34 @@ describe("isTerminal", () => {
     expect(isTerminal(corridor(), 0)).toBe(false);
   });
 });
+
+describe("step / expectedReward when bumping a wall or edge", () => {
+  // 1x2 world: [start(0), road(1)]; road has accident prob x1=1 so entry would always yield -r1=-4
+  function wallBumpWorld(): World {
+    return {
+      rows: 1,
+      cols: 2,
+      cells: ["start", "road"],
+      start: 0,
+      reward: { x1: 1, x2: 0, r1: 4, r2: 0, r3: 0, r4: 0, stepCost: 0 },
+    };
+  }
+
+  it("step: no entry reward when bumping the right edge (next === cell)", () => {
+    // cell 1 is at the right edge; moving right stays at 1 → no entry, reward must be 0
+    const r = step(wallBumpWorld(), 1, "right", createRng(1));
+    expect(r.next).toBe(1);
+    expect(r.reward).toBe(0); // NOT -4 despite x1=1
+  });
+
+  it("expectedReward: 0 when bumping the right edge (not -4)", () => {
+    expect(expectedReward(wallBumpWorld(), 1, "right")).toBe(0);
+  });
+
+  it("sanity: real entry into road still triggers the hazard reward", () => {
+    // cell 0 (start) → right → cell 1 (road): x1=1 so reward must be -r1=-4
+    const r = step(wallBumpWorld(), 0, "right", createRng(1));
+    expect(r.next).toBe(1);
+    expect(r.reward).toBe(-4);
+  });
+});
