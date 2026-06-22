@@ -6,6 +6,12 @@ const EXAMPLES = [
     title: "Multi-Armed Bandit",
     blurb: "Find the best poutine in Montréal. Random, greedy, optimistic init, and ε-greedy policies.",
   },
+  {
+    path: "/grid-world",
+    title: "Grid World — Policy Evaluation",
+    blurb:
+      "Help a character reach Chez Claudette. Estimate V(s) for a fixed policy with Monte Carlo, TD(0), and n-step TD.",
+  },
 ];
 
 export function Landing() {
