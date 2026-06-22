@@ -277,8 +277,12 @@ export function BanditExample() {
 
       <div className="my-3 flex items-stretch gap-3">
         {showLog && (
-          <div className="min-w-0 shrink basis-[200px]">
-            <EventLog entries={log} />
+          <div className="relative min-w-0 shrink basis-[200px]">
+            {/* absolute child so a long log scrolls instead of stretching the row;
+                the column height tracks the animation column via items-stretch */}
+            <div className="absolute inset-0">
+              <EventLog entries={log} />
+            </div>
           </div>
         )}
         <div className="flex min-w-0 shrink grow basis-0 flex-col gap-2">
