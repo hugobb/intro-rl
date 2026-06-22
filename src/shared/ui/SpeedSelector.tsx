@@ -8,7 +8,7 @@ export function SpeedSelector({
   onChange: (speed: number) => void;
 }) {
   return (
-    <div className="speed-selector" role="group" aria-label="Speed">
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Speed">
       {SPEEDS.map((s) => (
         <button key={s} aria-pressed={s === value} onClick={() => onChange(s)}>
           {s}×

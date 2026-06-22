@@ -12,12 +12,10 @@ import { EventLog } from "@/shared/ui/EventLog";
 import { SettingsPanel } from "@/shared/ui/SettingsPanel";
 import { Toggle } from "@/shared/ui/Toggle";
 import { RewardChart } from "@/shared/ui/RewardChart";
-import { RUN_COLORS, type RewardRun } from "@/shared/ui/chart";
+import { RUN_COLORS, type ChartMetric, type RunData } from "@/shared/ui/chart";
 import {
   createSim,
-  cumulativeReward,
   derive,
-  reset as resetSim,
   stepBack,
   stepForward,
   type Restaurant,
@@ -57,20 +55,24 @@ export function BanditExample() {
   const [epsilon, setEpsilon] = useState(DEFAULT_EPSILON);
   const [optimisticInit, setOptimisticInit] = useState(DEFAULT_OPTIMISTIC_INIT);
   const [restaurants, setRestaurants] = useState<Restaurant[]>(DEFAULT_RESTAURANTS);
+  const [seed, setSeed] = useState(DEFAULT_SEED);
   const [showTrue, setShowTrue] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLog, setShowLog] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const [savedRuns, setSavedRuns] = useState<RewardRun[]>([]);
+  const [savedRuns, setSavedRuns] = useState<RunData[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [metric, setMetric] = useState<ChartMetric>("total-reward");
   const runIdRef = useRef(0);
 
-  // simulation state lives in a ref (mutated imperatively); a tick forces re-render
+  // simulation state lives in a ref (mutated imperatively); a tick forces re-render.
+  // Seed is state so Reset can reroll it; switching policy/params keeps the seed,
+  // letting you compare policies on identical luck.
   const config: SimConfig = useMemo(
-    () => ({ restaurants, policy, epsilon, optimisticInit, seed: DEFAULT_SEED }),
-    [restaurants, policy, epsilon, optimisticInit],
+    () => ({ restaurants, policy, epsilon, optimisticInit, seed }),
+    [restaurants, policy, epsilon, optimisticInit, seed],
   );
   const simRef = useRef<SimState>(createSim(config));
   const animRef = useRef<Anim>(IDLE);
@@ -78,10 +80,17 @@ export function BanditExample() {
   const rerender = useCallback(() => forceTick((t) => t + 1), []);
   const [log, setLog] = useState<string[]>([]);
 
+  const optimalArm = useMemo(() => {
+    const means = restaurants.map((r) => trueMean(r.dist));
+    return means.indexOf(Math.max(...means));
+  }, [restaurants]);
+
   // Freeze the just-finished run (if it had any steps) into a labeled chart line.
   const snapshotRun = useCallback((sim: SimState) => {
-    const cumulative = cumulativeReward(sim);
-    if (cumulative.length < 2) return; // no steps taken — nothing to save
+    const applied = sim.trajectory.slice(0, sim.pointer);
+    if (applied.length === 0) return; // no steps taken — nothing to save
+    const means = sim.config.restaurants.map((r) => trueMean(r.dist));
+    const optArm = means.indexOf(Math.max(...means));
     const id = runIdRef.current++;
     setSavedRuns((prev) => [
       ...prev,
@@ -89,12 +98,14 @@ export function BanditExample() {
         id,
         label: `Run ${id + 1} · ${POLICY_LABELS[sim.config.policy]}`,
         color: RUN_COLORS[id % RUN_COLORS.length],
-        cumulative,
+        arms: applied.map((r) => r.arm),
+        rewards: applied.map((r) => r.reward),
+        optimalArm: optArm,
       },
     ]);
   }, []);
 
-  // auto-reset whenever config changes (policy / epsilon / init / distributions)
+  // auto-reset whenever config changes (policy / epsilon / init / distributions / seed)
   useEffect(() => {
     snapshotRun(simRef.current); // save the previous run before discarding it
     simRef.current = createSim(config);
@@ -106,19 +117,20 @@ export function BanditExample() {
 
   const derived = derive(simRef.current);
   // Memoized so `commitStep` and the rAF animation effect keep a stable identity
-  // across per-step re-renders (otherwise the loop is torn down every step,
-  // resetting dt and dropping a walk frame each time).
+  // across per-step re-renders (otherwise the loop is torn down every step).
   const names = useMemo(() => restaurants.map((r) => r.name), [restaurants]);
   const trueValues = restaurants.map((r) => trueMean(r.dist));
 
-  const liveCumulative = cumulativeReward(simRef.current);
-  const liveRun: RewardRun | null =
-    liveCumulative.length > 1
+  const applied = simRef.current.trajectory.slice(0, simRef.current.pointer);
+  const liveRun: RunData | null =
+    applied.length > 0
       ? {
           id: LIVE_RUN_ID,
           label: `${POLICY_LABELS[policy]} (current)`,
           color: PALETTE.accent,
-          cumulative: liveCumulative,
+          arms: applied.map((r) => r.arm),
+          rewards: applied.map((r) => r.reward),
+          optimalArm,
         }
       : null;
 
@@ -147,14 +159,11 @@ export function BanditExample() {
     rerender();
   }, [rerender]);
 
+  // Reset rerolls the seed → the config effect snapshots the run and starts fresh.
   const handleReset = useCallback(() => {
     setIsPlaying(false);
-    snapshotRun(simRef.current); // save the finished run to the chart
-    simRef.current = resetSim(simRef.current);
-    animRef.current = IDLE;
-    setLog([]);
-    rerender();
-  }, [rerender, snapshotRun]);
+    setSeed((s) => nextSeed(s));
+  }, []);
 
   const handleSelectRun = useCallback((id: number) => {
     setSelectedRunId((cur) => (cur === id ? null : id)); // click again to deselect
@@ -223,17 +232,17 @@ export function BanditExample() {
   }, [speed, isPlaying, commitStep, names]);
 
   return (
-    <div className="app bandit">
+    <div className="mx-auto max-w-[1200px] p-4">
       <p>
         <Link to="/">← All demos</Link>
       </p>
-      <h1>Multi-Armed Bandit: Best Poutine in Montréal</h1>
+      <h1 className="text-[16px]">Multi-Armed Bandit: Best Poutine in Montréal</h1>
 
       <PolicyTabs value={policy} onChange={setPolicy} />
 
-      <div className="param-bar">
+      <div className="my-3 flex flex-wrap items-center gap-3">
         {policy === "epsilon-greedy" && (
-          <label>
+          <label className="flex items-center gap-1.5">
             ε = {epsilon.toFixed(2)}
             <input
               type="range"
@@ -246,11 +255,12 @@ export function BanditExample() {
           </label>
         )}
         {policy === "optimistic" && (
-          <label>
+          <label className="flex items-center gap-1.5">
             Init value
             <input
               type="number"
               step="0.5"
+              className="w-[60px] border-2 border-ink bg-bg px-1 text-ink"
               value={optimisticInit}
               onChange={(e) => setOptimisticInit(Number(e.target.value))}
             />
@@ -263,11 +273,15 @@ export function BanditExample() {
         </button>
       </div>
 
-      <div className="bandit-stage">
-        {showLog && <EventLog entries={log} />}
-        <div className="bandit-center">
-          <canvas ref={canvasRef} aria-label="Bandit animation" />
-          <div className="controls-row">
+      <div className="my-3 flex items-stretch gap-3">
+        {showLog && (
+          <div className="min-w-0 shrink basis-[200px]">
+            <EventLog entries={log} />
+          </div>
+        )}
+        <div className="flex min-w-0 shrink grow basis-0 flex-col gap-2">
+          <canvas ref={canvasRef} aria-label="Bandit animation" className="block h-auto w-full" />
+          <div className="flex flex-wrap justify-between gap-4">
             <PlaybackControls
               isPlaying={isPlaying}
               onStepBack={handleStepBack}
@@ -281,13 +295,17 @@ export function BanditExample() {
             <SpeedSelector value={speed} onChange={setSpeed} />
           </div>
         </div>
-        <RewardChart
-          savedRuns={savedRuns}
-          liveRun={liveRun}
-          selectedId={selectedRunId}
-          onSelect={handleSelectRun}
-          onDelete={handleDeleteRun}
-        />
+        <div className="min-w-0 shrink basis-[320px]">
+          <RewardChart
+            savedRuns={savedRuns}
+            liveRun={liveRun}
+            selectedId={selectedRunId}
+            onSelect={handleSelectRun}
+            onDelete={handleDeleteRun}
+            metric={metric}
+            onMetricChange={setMetric}
+          />
+        </div>
       </div>
 
       <TrackerPanel
@@ -318,4 +336,9 @@ function nextPhase(phase: WalkPhase): WalkPhase {
     default:
       return "idle";
   }
+}
+
+/** Derive a fresh, well-spread seed from the current one (golden-ratio step). */
+function nextSeed(s: number): number {
+  return (s + 0x9e3779b9) >>> 0;
 }

@@ -17,11 +17,10 @@ export function PolicyTabs({
   onChange: (kind: PolicyKind) => void;
 }) {
   return (
-    <div className="policy-tabs" role="tablist">
+    <div className="flex flex-wrap gap-1.5" role="tablist">
       {ORDER.map((kind) => (
         <button
           key={kind}
-          className={kind === value ? "active" : ""}
           aria-pressed={kind === value}
           onClick={() => onChange(kind)}
         >

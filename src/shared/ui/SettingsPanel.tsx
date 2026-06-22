@@ -19,11 +19,13 @@ export function SettingsPanel({
     onChange(next);
   };
   return (
-    <div className="settings-panel">
-      <h3>True distributions</h3>
-      <p>P(1★), P(2★), P(3★) per restaurant. (Should sum to 1.)</p>
+    <div className="mt-4 bg-panel p-3">
+      <h3 className="text-[11px]">True distributions</h3>
+      <p className="text-[10px]">
+        P(1★), P(2★), P(3★) per restaurant. (Should sum to 1.)
+      </p>
       {restaurants.map((r, ri) => (
-        <div key={r.name} className="settings-row">
+        <div key={r.name} className="my-1.5 flex items-center gap-2">
           <span>{r.name}</span>
           {[0, 1, 2].map((pi) => (
             <input
@@ -32,6 +34,7 @@ export function SettingsPanel({
               step="0.05"
               min="0"
               max="1"
+              className="w-[60px] border-2 border-ink bg-bg px-1 text-ink"
               value={r.dist[pi]}
               aria-label={`${r.name} P(${pi + 1} star)`}
               onChange={(e) => setProb(ri, pi, e.target.value)}

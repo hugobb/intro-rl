@@ -1,74 +1,63 @@
 @import "@fontsource/press-start-2p/index.css";
+@import "tailwindcss";
 
-:root {
-  --bg: #1a1c2c;
-  --panel: #29366f;
-  --ink: #f4f4f4;
-  --accent: #ffcd75;
-  --good: #38b764;
-  --mid: #41a6f6;
-  --bad: #ef7d57;
-  font-family: "Press Start 2P", system-ui, sans-serif;
+/* Retro palette + pixel font as Tailwind theme tokens → bg-bg, text-ink, font-pixel, … */
+@theme {
+  --color-bg: #1a1c2c;
+  --color-panel: #29366f;
+  --color-ink: #f4f4f4;
+  --color-accent: #ffcd75;
+  --color-good: #38b764;
+  --color-mid: #41a6f6;
+  --color-bad: #ef7d57;
+  --font-pixel: "Press Start 2P", system-ui, sans-serif;
 }
 
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-size: 12px;
-  line-height: 1.6;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  a {
+    color: var(--color-accent);
+  }
+  /* Shared retro look for control buttons; legend buttons opt out with utilities. */
+  button {
+    font-family: var(--font-pixel);
+    background: var(--color-panel);
+    color: var(--color-ink);
+    border: 2px solid var(--color-ink);
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: var(--color-accent);
+    color: var(--color-bg);
+  }
+  button[aria-pressed="true"],
+  button.active {
+    background: var(--color-accent);
+    color: var(--color-bg);
+  }
+  select {
+    font-family: var(--font-pixel);
+    background: var(--color-panel);
+    color: var(--color-ink);
+    border: 2px solid var(--color-ink);
+    font-size: 9px;
+    padding: 2px;
+  }
+  input {
+    font-family: var(--font-pixel);
+  }
+  canvas {
+    image-rendering: pixelated;
+  }
 }
-
-a { color: var(--accent); }
-
-.app { max-width: 1000px; margin: 0 auto; padding: 24px; }
-
-button {
-  font-family: inherit;
-  background: var(--panel);
-  color: var(--ink);
-  border: 2px solid var(--ink);
-  padding: 8px 10px;
-  cursor: pointer;
-}
-button:hover { background: var(--accent); color: var(--bg); }
-button[aria-pressed="true"], button.active { background: var(--accent); color: var(--bg); }
-
-canvas { image-rendering: pixelated; width: 100%; height: auto; background: #0f1020; }
-
-.bandit h1 { font-size: 16px; }
-.policy-tabs, .playback-controls, .speed-selector { display: flex; gap: 6px; flex-wrap: wrap; }
-.param-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
-.param-bar label { display: flex; gap: 6px; align-items: center; }
-.controls-row { display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; margin: 12px 0; }
-.tracker-panel { display: grid; gap: 12px; margin-top: 16px; }
-.tracker-panel__step { color: var(--accent); }
-.value-bar__head { display: flex; justify-content: space-between; }
-.value-bar__track { position: relative; height: 18px; background: var(--panel); border: 2px solid var(--ink); }
-.value-bar__fill { height: 100%; }
-.value-bar__true { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--ink); }
-.value-bar__count { font-size: 10px; color: var(--mid); }
-.event-log { margin-top: 16px; max-height: 200px; overflow: auto; background: var(--panel); padding: 8px; }
-.event-log li { font-size: 10px; }
-.settings-panel { margin-top: 16px; background: var(--panel); padding: 12px; }
-.settings-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
-.settings-row input { width: 60px; }
-.toggle { display: flex; gap: 4px; align-items: center; }
-
-/* 3-column stage: event log (left) · animation (center) · reward chart (right) */
-.bandit-stage { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; margin: 12px 0; }
-.bandit-center { flex: 2 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.bandit-stage .event-log { flex: 1 1 200px; max-width: 260px; margin-top: 0; max-height: 460px; }
-.reward-chart { flex: 1 1 320px; max-width: 420px; background: var(--panel); padding: 8px; }
-.reward-chart h3 { margin: 0 0 6px; font-size: 11px; }
-.reward-chart canvas { width: 100%; height: auto; background: var(--bg); }
-.reward-chart__legend { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; max-height: 130px; overflow: auto; }
-.reward-chart__legend li { display: flex; align-items: center; gap: 6px; }
-.reward-chart__legend li.selected { outline: 2px solid var(--accent); }
-.reward-chart__empty { color: var(--mid); font-size: 9px; }
-.legend-row { flex: 1; display: flex; align-items: center; gap: 6px; background: transparent; border: none; color: var(--ink); padding: 2px 4px; cursor: pointer; text-align: left; font-size: 9px; }
-.legend-row:hover { background: var(--bg); color: var(--ink); }
-.legend-del { background: var(--bad); border: none; color: var(--ink); padding: 0 6px; cursor: pointer; }
-.swatch { width: 10px; height: 10px; flex: 0 0 auto; display: inline-block; border: 1px solid var(--ink); }

@@ -19,8 +19,8 @@ export function TrackerPanel({
   step: number;
 }) {
   return (
-    <div className="tracker-panel">
-      <div className="tracker-panel__step">Step: {step}</div>
+    <div className="mt-4 grid gap-3">
+      <div className="text-accent">Step: {step}</div>
       {names.map((name, i) => (
         <ValueBar
           key={name}

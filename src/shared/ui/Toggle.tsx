@@ -8,7 +8,7 @@ export function Toggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="toggle">
+    <label className="flex items-center gap-1">
       <input
         type="checkbox"
         checked={checked}

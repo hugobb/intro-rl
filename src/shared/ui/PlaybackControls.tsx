@@ -12,7 +12,7 @@ export function PlaybackControls({
   onReset: () => void;
 }) {
   return (
-    <div className="playback-controls" role="group" aria-label="Playback">
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Playback">
       <button onClick={onStepBack} aria-label="Step back">
         ◀ Back
       </button>

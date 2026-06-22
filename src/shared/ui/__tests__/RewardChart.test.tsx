@@ -1,26 +1,29 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { RewardChart } from "../RewardChart";
-import type { RewardRun } from "../chart";
+import type { RunData } from "../chart";
 
-const run = (id: number, label: string): RewardRun => ({
+const run = (id: number, label: string): RunData => ({
   id,
   label,
   color: "#fff",
-  cumulative: [0, 2, 5],
+  arms: [0, 1, 0],
+  rewards: [3, 1, 2],
+  optimalArm: 0,
 });
+
+const base = {
+  liveRun: null,
+  selectedId: null,
+  onSelect: () => {},
+  onDelete: () => {},
+  metric: "total-reward" as const,
+  onMetricChange: () => {},
+};
 
 describe("RewardChart", () => {
   it("lists saved runs in the legend", () => {
-    render(
-      <RewardChart
-        savedRuns={[run(1, "Run 1 · Greedy")]}
-        liveRun={null}
-        selectedId={null}
-        onSelect={() => {}}
-        onDelete={() => {}}
-      />,
-    );
+    render(<RewardChart {...base} savedRuns={[run(1, "Run 1 · Greedy")]} />);
     expect(screen.getByRole("button", { name: /^Run 1 · Greedy/ })).toBeInTheDocument();
   });
 
@@ -29,9 +32,8 @@ describe("RewardChart", () => {
     const onDelete = vi.fn();
     render(
       <RewardChart
+        {...base}
         savedRuns={[run(2, "Run 2 · Random")]}
-        liveRun={null}
-        selectedId={null}
         onSelect={onSelect}
         onDelete={onDelete}
       />,
@@ -42,16 +44,17 @@ describe("RewardChart", () => {
     expect(onDelete).toHaveBeenCalledWith(2);
   });
 
+  it("changes the metric via the selector", () => {
+    const onMetricChange = vi.fn();
+    render(<RewardChart {...base} savedRuns={[]} onMetricChange={onMetricChange} />);
+    fireEvent.change(screen.getByRole("combobox", { name: /chart metric/i }), {
+      target: { value: "optimal-pct" },
+    });
+    expect(onMetricChange).toHaveBeenCalledWith("optimal-pct");
+  });
+
   it("shows an empty hint when there are no runs", () => {
-    render(
-      <RewardChart
-        savedRuns={[]}
-        liveRun={null}
-        selectedId={null}
-        onSelect={() => {}}
-        onDelete={() => {}}
-      />,
-    );
-    expect(screen.getByText(/Run the sim to plot reward/)).toBeInTheDocument();
+    render(<RewardChart {...base} savedRuns={[]} />);
+    expect(screen.getByText(/Run the sim to plot/)).toBeInTheDocument();
   });
 });

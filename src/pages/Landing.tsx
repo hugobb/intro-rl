@@ -10,10 +10,10 @@ const EXAMPLES = [
 
 export function Landing() {
   return (
-    <div className="app">
+    <div className="mx-auto max-w-3xl p-6">
       <h1>Intro to Reinforcement Learning</h1>
       <p>Interactive demos for the lecture.</p>
-      <ul>
+      <ul className="grid gap-2">
         {EXAMPLES.map((e) => (
           <li key={e.path}>
             <Link to={e.path}>{e.title}</Link> — {e.blurb}
