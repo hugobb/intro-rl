@@ -131,31 +131,47 @@ export function reachableStates(world: World, policy: Policy): number[] {
 }
 
 /**
- * Exact V(s) for a deterministic policy via iterative policy evaluation
- * (repeated Bellman backups to tolerance). For gamma < 1 this converges for any
- * policy; it is the analytical-ground-truth reference for the demo. V is 0 for
- * walls and terminal cells.
+ * Exact V(s) via iterative policy evaluation. For epsilon>0 the policy is ε-soft:
+ * π(a|s) = (1-epsilon)·[a==policy[s]] + epsilon/|A|. epsilon=0 is the deterministic
+ * backup (identical to before). V is 0 for walls and terminal cells.
  */
 export function solveV(
   world: World,
   policy: Policy,
   gamma: number,
+  epsilon = 0,
   tol = 1e-9,
   maxIters = 100000,
 ): number[] {
   const n = world.cells.length;
   const V = new Array<number>(n).fill(0);
+  const k = ACTIONS.length;
   for (let iter = 0; iter < maxIters; iter++) {
     let delta = 0;
     for (let s = 0; s < n; s++) {
       if (world.cells[s] === "wall" || isTerminal(world, s)) continue;
-      const a = policy[s];
-      const sp = nextCell(world, s, a);
-      const v = expectedReward(world, s, a) + gamma * (isTerminal(world, sp) ? 0 : V[sp]);
-      delta = Math.max(delta, Math.abs(v - V[s]));
-      V[s] = v;
+      let acc = 0;
+      for (const a of ACTIONS) {
+        const prob = (a === policy[s] ? 1 - epsilon : 0) + epsilon / k;
+        if (prob === 0) continue;
+        const sp = nextCell(world, s, a);
+        const backup =
+          expectedReward(world, s, a) + gamma * (isTerminal(world, sp) ? 0 : V[sp]);
+        acc += prob * backup;
+      }
+      delta = Math.max(delta, Math.abs(acc - V[s]));
+      V[s] = acc;
     }
     if (delta < tol) break;
   }
   return V;
+}
+
+/** Non-wall, non-terminal cell indices (the full state space for "RMS over all"). */
+export function allStates(world: World): number[] {
+  const out: number[] = [];
+  for (let s = 0; s < world.cells.length; s++) {
+    if (world.cells[s] !== "wall" && !isTerminal(world, s)) out.push(s);
+  }
+  return out;
 }

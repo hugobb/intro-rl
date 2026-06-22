@@ -8,6 +8,7 @@ import {
   isTerminal,
   reachableStates,
   solveV,
+  allStates,
   type World,
   type Policy,
 } from "@/shared/rl/gridworld";
@@ -135,6 +136,49 @@ describe("reachableStates", () => {
     // 0 -> right -> 1 -> left -> 0 -> ... (loop)
     const out = reachableStates(w, ["right", "left", "left"]);
     expect(out).toEqual([0, 1]); // no repeats, no infinite loop
+  });
+});
+
+describe("solveV with epsilon (ε-soft)", () => {
+  it("epsilon=0 equals the deterministic solve", () => {
+    const w: World = {
+      rows: 1, cols: 3,
+      cells: ["start", "empty", "restaurant"],
+      start: 0,
+      reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 10, stepCost: 0 },
+    };
+    const pol: Policy = ["right", "right", "right"];
+    const det = solveV(w, pol, 0.9);
+    const eps0 = solveV(w, pol, 0.9, 0);
+    expect(eps0).toEqual(det);
+  });
+
+  it("mixes in random actions for epsilon>0", () => {
+    // 1x3 [start, empty, restaurant], policy 'right'. With epsilon, state 0 sometimes
+    // goes left (stays) instead of right, lowering its value below the deterministic 9.
+    const w: World = {
+      rows: 1, cols: 3,
+      cells: ["start", "empty", "restaurant"],
+      start: 0,
+      reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 10, stepCost: 0 },
+    };
+    const pol: Policy = ["right", "right", "right"];
+    const det = solveV(w, pol, 0.9, 0);
+    const soft = solveV(w, pol, 0.9, 0.5);
+    expect(soft[0]).toBeLessThan(det[0]); // noise hurts a goal-directed policy here
+    expect(soft[0]).toBeGreaterThan(0);
+  });
+});
+
+describe("allStates", () => {
+  it("returns non-wall, non-terminal cells", () => {
+    const w: World = {
+      rows: 1, cols: 4,
+      cells: ["start", "wall", "empty", "restaurant"],
+      start: 0,
+      reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 0, stepCost: 0 },
+    };
+    expect(allStates(w)).toEqual([0, 2]);
   });
 });
 
