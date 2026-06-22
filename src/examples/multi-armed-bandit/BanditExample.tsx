@@ -59,6 +59,7 @@ export function BanditExample() {
   const [showTrue, setShowTrue] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLog, setShowLog] = useState(true);
+  const [showChart, setShowChart] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -268,6 +269,7 @@ export function BanditExample() {
         )}
         <Toggle label="Show true value" checked={showTrue} onChange={setShowTrue} />
         <Toggle label="Event log" checked={showLog} onChange={setShowLog} />
+        <Toggle label="Chart" checked={showChart} onChange={setShowChart} />
         <button onClick={() => setShowSettings((s) => !s)} aria-label="Settings">
           Settings
         </button>
@@ -301,17 +303,19 @@ export function BanditExample() {
             <SpeedSelector value={speed} onChange={setSpeed} />
           </div>
         </div>
-        <div className="min-w-0 shrink basis-[320px]">
-          <RewardChart
-            savedRuns={savedRuns}
-            liveRun={liveRun}
-            selectedId={selectedRunId}
-            onSelect={handleSelectRun}
-            onDelete={handleDeleteRun}
-            metric={metric}
-            onMetricChange={setMetric}
-          />
-        </div>
+        {showChart && (
+          <div className="min-w-0 shrink basis-[320px]">
+            <RewardChart
+              savedRuns={savedRuns}
+              liveRun={liveRun}
+              selectedId={selectedRunId}
+              onSelect={handleSelectRun}
+              onDelete={handleDeleteRun}
+              metric={metric}
+              onMetricChange={setMetric}
+            />
+          </div>
+        )}
       </div>
 
       <TrackerPanel
