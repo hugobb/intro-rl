@@ -49,13 +49,19 @@ interface Anim {
   lastRating: number | null;
 }
 
-const IDLE: Anim = { phase: "idle", progress: 0, targetArm: 0, lastRating: null };
+const IDLE: Anim = {
+  phase: "idle",
+  progress: 0,
+  targetArm: 0,
+  lastRating: null,
+};
 
 export function BanditExample() {
-  const [policy, setPolicy] = useState<PolicyKind>("random");
+  const [policy, setPolicy] = useState<PolicyKind>("manual");
   const [epsilon, setEpsilon] = useState(DEFAULT_EPSILON);
   const [optimisticInit, setOptimisticInit] = useState(DEFAULT_OPTIMISTIC_INIT);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>(DEFAULT_RESTAURANTS);
+  const [restaurants, setRestaurants] =
+    useState<Restaurant[]>(DEFAULT_RESTAURANTS);
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [showTrue, setShowTrue] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -230,7 +236,14 @@ export function BanditExample() {
         const dims = fitCanvas(canvas, SCENE_W, SCENE_H, dpr);
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          ctx.setTransform(dims.width / SCENE_W, 0, 0, dims.height / SCENE_H, 0, 0);
+          ctx.setTransform(
+            dims.width / SCENE_W,
+            0,
+            0,
+            dims.height / SCENE_H,
+            0,
+            0,
+          );
           const cur = animRef.current;
           const scene: SceneState = {
             layout: computeLayout(SCENE_W, SCENE_H, names.length),
@@ -253,12 +266,24 @@ export function BanditExample() {
     };
   }, [speed, isPlaying, commitStep, names]);
 
+  // Close the settings dialog on Escape.
+  useEffect(() => {
+    if (!showSettings) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowSettings(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSettings]);
+
   return (
     <div className="mx-auto max-w-[1200px] p-4">
       <p>
         <Link to="/">← All demos</Link>
       </p>
-      <h1 className="text-[16px]">Multi-Armed Bandit: Best Poutine in Montréal</h1>
+      <h1 className="text-[16px]">
+        Multi-Armed Bandit: Best Poutine in Montréal
+      </h1>
 
       <PolicyTabs value={policy} onChange={setPolicy} />
 
@@ -288,10 +313,17 @@ export function BanditExample() {
             />
           </label>
         )}
-        <Toggle label="Show true value" checked={showTrue} onChange={setShowTrue} />
+        <Toggle
+          label="Show true value"
+          checked={showTrue}
+          onChange={setShowTrue}
+        />
         <Toggle label="Event log" checked={showLog} onChange={setShowLog} />
         <Toggle label="Chart" checked={showChart} onChange={setShowChart} />
-        <button onClick={() => setShowSettings((s) => !s)} aria-label="Settings">
+        <button
+          onClick={() => setShowSettings((s) => !s)}
+          aria-label="Settings"
+        >
           Settings
         </button>
       </div>
@@ -316,7 +348,9 @@ export function BanditExample() {
           />
           {policy === "manual" && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-accent">Pick a restaurant:</span>
+              <span className="text-[10px] text-accent">
+                Pick a restaurant:
+              </span>
               {names.map((name, i) => (
                 <button key={name} onClick={() => handleChoose(i)}>
                   {name}
@@ -365,7 +399,29 @@ export function BanditExample() {
       />
 
       {showSettings && (
-        <SettingsPanel restaurants={restaurants} onChange={setRestaurants} />
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowSettings(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Settings"
+            className="max-h-[85vh] w-full max-w-[520px] overflow-auto border-2 border-ink bg-bg p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <h2 className="text-[14px]">Settings</h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                aria-label="Close settings"
+              >
+                Close
+              </button>
+            </div>
+            <SettingsPanel restaurants={restaurants} onChange={setRestaurants} />
+          </div>
+        </div>
       )}
     </div>
   );
