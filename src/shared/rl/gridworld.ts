@@ -167,6 +167,26 @@ export function solveV(
   return V;
 }
 
+/**
+ * Model-derived action values from an estimated (or true) V:
+ * Q(s,a) = expectedReward(s,a) + gamma * (isTerminal(s') ? 0 : V[s']).
+ * Indexed [cell][actionIndex] with actionIndex following ACTIONS order.
+ */
+export function computeQ(
+  world: World,
+  vEst: number[],
+  gamma: number,
+): number[][] {
+  return world.cells.map((_, s) =>
+    ACTIONS.map((a) => {
+      const sp = nextCell(world, s, a);
+      return (
+        expectedReward(world, s, a) + gamma * (isTerminal(world, sp) ? 0 : (vEst[sp] ?? 0))
+      );
+    }),
+  );
+}
+
 /** Non-wall, non-terminal cell indices (the full state space for "RMS over all"). */
 export function allStates(world: World): number[] {
   const out: number[] = [];

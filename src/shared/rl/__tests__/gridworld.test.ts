@@ -9,6 +9,7 @@ import {
   reachableStates,
   solveV,
   allStates,
+  computeQ,
   type World,
   type Policy,
 } from "@/shared/rl/gridworld";
@@ -179,6 +180,28 @@ describe("allStates", () => {
       reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 0, stepCost: 0 },
     };
     expect(allStates(w)).toEqual([0, 2]);
+  });
+});
+
+describe("computeQ", () => {
+  it("Q(s,a) = expectedReward(s,a) + gamma * V(next), 0 at terminal", () => {
+    const w: World = {
+      rows: 1, cols: 3,
+      cells: ["start", "empty", "restaurant"],
+      start: 0,
+      reward: { x1: 0, x2: 0, r1: 0, r2: 0, r3: 0, r4: 10, stepCost: 0 },
+    };
+    // Pretend V is already solved: V = [9, 10, 0]
+    const V = [9, 10, 0];
+    const Q = computeQ(w, V, 0.9);
+    // ACTIONS = ["up","right","down","left"]; from cell 1 going right enters restaurant (r4=10, terminal)
+    const rightIdx = 1;
+    expect(Q[1][rightIdx]).toBeCloseTo(10); // 10 + 0.9*0
+    // from cell 0 going right enters cell 1 (empty, reward 0): 0 + 0.9*V[1] = 9
+    expect(Q[0][rightIdx]).toBeCloseTo(9);
+    // from cell 0 going left is off-board → stays at 0 (empty entry 0): 0 + 0.9*V[0] = 8.1
+    const leftIdx = 3;
+    expect(Q[0][leftIdx]).toBeCloseTo(8.1);
   });
 });
 
