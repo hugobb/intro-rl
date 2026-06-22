@@ -81,7 +81,13 @@ export function RewardChart({
           ))}
         </select>
       </div>
-      <canvas ref={canvasRef} aria-label="Reward chart" className="block h-auto w-full" />
+      <canvas
+        ref={canvasRef}
+        width={CW}
+        height={CH}
+        aria-label="Reward chart"
+        className="block h-auto w-full"
+      />
       <ul className="m-0 mt-2 grid max-h-[120px] list-none gap-1 overflow-auto p-0">
         {liveRun && (
           <li className={liClass(liveRun.id)}>

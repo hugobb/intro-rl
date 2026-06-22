@@ -143,7 +143,7 @@ export function BanditExample() {
       targetArm: record.arm,
       lastRating: record.reward,
     };
-    const why = record.reason === "explore" ? "🎲 random" : "★ best";
+    const why = record.reason === "explore" ? "random" : "best";
     setLog((l) => [
       ...l,
       `Step ${state.pointer} · ${why} · ${names[record.arm]} → ${record.reward}★`,
@@ -269,7 +269,7 @@ export function BanditExample() {
         <Toggle label="Show true value" checked={showTrue} onChange={setShowTrue} />
         <Toggle label="Event log" checked={showLog} onChange={setShowLog} />
         <button onClick={() => setShowSettings((s) => !s)} aria-label="Settings">
-          ⚙
+          Settings
         </button>
       </div>
 
@@ -280,7 +280,13 @@ export function BanditExample() {
           </div>
         )}
         <div className="flex min-w-0 shrink grow basis-0 flex-col gap-2">
-          <canvas ref={canvasRef} aria-label="Bandit animation" className="block h-auto w-full" />
+          <canvas
+            ref={canvasRef}
+            width={SCENE_W}
+            height={SCENE_H}
+            aria-label="Bandit animation"
+            className="block h-auto w-full"
+          />
           <div className="flex flex-wrap justify-between gap-4">
             <PlaybackControls
               isPlaying={isPlaying}
