@@ -7,7 +7,8 @@ describe("scene layout", () => {
     expect(l.storeXs).toHaveLength(3);
     expect(l.storeXs[0]).toBeLessThan(l.storeXs[1]);
     expect(l.storeXs[1]).toBeLessThan(l.storeXs[2]);
-    expect(l.homeX).toBeCloseTo(500, 5);
+    // character's default position is to the left of all storefronts
+    expect(l.homeX).toBeLessThan(l.storeXs[0]);
   });
 });
 

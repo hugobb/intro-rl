@@ -35,7 +35,8 @@ export function computeLayout(width: number, height: number, numStores: number):
   for (let i = 0; i < numStores; i++) {
     storeXs.push(margin + (usable * (i + 0.5)) / numStores);
   }
-  return { width, height, homeX: width / 2, groundY: height * 0.82, storeXs };
+  // Character's default/idle position sits to the LEFT of all storefronts.
+  return { width, height, homeX: margin * 0.5, groundY: height * 0.82, storeXs };
 }
 
 export function characterX(
@@ -99,7 +100,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: SceneState): voi
 
   // rating popup
   if (phase === "rating" && lastRating != null) {
-    drawStars(ctx, storeXs[targetArm], groundY - storeH - 28, lastRating);
+    drawStars(ctx, storeXs[targetArm], groundY - storeH - 52, lastRating);
   }
 }
 
@@ -134,7 +135,7 @@ function drawStars(
   rating: number,
 ): void {
   ctx.fillStyle = PALETTE.star;
-  ctx.font = `12px ${PIXEL_FONT}`;
+  ctx.font = `40px ${PIXEL_FONT}`;
   ctx.textAlign = "center";
   ctx.fillText("★".repeat(rating) + "☆".repeat(3 - rating), x, y);
 }
