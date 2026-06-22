@@ -1,1 +1,260 @@
-export function BanditExample() { return <div className="app">Coming soon</div>; }
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import type { PolicyKind } from "@/shared/rl/policies";
+import { trueMean } from "@/shared/rl/reward";
+import { fitCanvas } from "@/shared/pixel/canvas";
+import { PolicyTabs } from "@/shared/ui/PolicyTabs";
+import { PlaybackControls } from "@/shared/ui/PlaybackControls";
+import { SpeedSelector } from "@/shared/ui/SpeedSelector";
+import { TrackerPanel } from "@/shared/ui/TrackerPanel";
+import { EventLog } from "@/shared/ui/EventLog";
+import { SettingsPanel } from "@/shared/ui/SettingsPanel";
+import { Toggle } from "@/shared/ui/Toggle";
+import {
+  createSim,
+  derive,
+  reset as resetSim,
+  stepBack,
+  stepForward,
+  type Restaurant,
+  type SimConfig,
+  type SimState,
+} from "./simulation";
+import {
+  computeLayout,
+  drawScene,
+  type SceneState,
+  type WalkPhase,
+} from "./scene";
+import {
+  DEFAULT_EPSILON,
+  DEFAULT_OPTIMISTIC_INIT,
+  DEFAULT_RESTAURANTS,
+  DEFAULT_SEED,
+  MAX_VALUE,
+} from "./restaurants";
+
+const BASE_CYCLE_MS = 1400; // full walk-to + rate + walk-back at 1×
+const SCENE_W = 960;
+const SCENE_H = 360;
+
+interface Anim {
+  phase: WalkPhase;
+  progress: number;
+  targetArm: number;
+  lastRating: number | null;
+}
+
+const IDLE: Anim = { phase: "idle", progress: 0, targetArm: 0, lastRating: null };
+
+export function BanditExample() {
+  const [policy, setPolicy] = useState<PolicyKind>("random");
+  const [epsilon, setEpsilon] = useState(DEFAULT_EPSILON);
+  const [optimisticInit, setOptimisticInit] = useState(DEFAULT_OPTIMISTIC_INIT);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(DEFAULT_RESTAURANTS);
+  const [showTrue, setShowTrue] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // simulation state lives in a ref (mutated imperatively); a tick forces re-render
+  const config: SimConfig = useMemo(
+    () => ({ restaurants, policy, epsilon, optimisticInit, seed: DEFAULT_SEED }),
+    [restaurants, policy, epsilon, optimisticInit],
+  );
+  const simRef = useRef<SimState>(createSim(config));
+  const animRef = useRef<Anim>(IDLE);
+  const [, forceTick] = useState(0);
+  const rerender = useCallback(() => forceTick((t) => t + 1), []);
+  const [log, setLog] = useState<string[]>([]);
+
+  // auto-reset whenever config changes (policy / epsilon / init / distributions)
+  useEffect(() => {
+    simRef.current = createSim(config);
+    animRef.current = IDLE;
+    setLog([]);
+    setIsPlaying(false);
+    rerender();
+  }, [config, rerender]);
+
+  const derived = derive(simRef.current);
+  const names = restaurants.map((r) => r.name);
+  const trueValues = restaurants.map((r) => trueMean(r.dist));
+
+  const commitStep = useCallback(() => {
+    const { state, record } = stepForward(simRef.current);
+    simRef.current = state;
+    animRef.current = {
+      phase: "walking-to",
+      progress: 0,
+      targetArm: record.arm,
+      lastRating: record.reward,
+    };
+    setLog((l) => [
+      ...l,
+      `Step ${state.pointer}: visited ${names[record.arm]} → ${record.reward}★`,
+    ]);
+    rerender();
+  }, [names, rerender]);
+
+  const handleStepBack = useCallback(() => {
+    setIsPlaying(false);
+    simRef.current = stepBack(simRef.current);
+    animRef.current = IDLE;
+    setLog((l) => l.slice(0, simRef.current.pointer));
+    rerender();
+  }, [rerender]);
+
+  const handleReset = useCallback(() => {
+    setIsPlaying(false);
+    simRef.current = resetSim(simRef.current);
+    animRef.current = IDLE;
+    setLog([]);
+    rerender();
+  }, [rerender]);
+
+  // animation loop: advances the current walk cycle; auto-steps when playing
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastTsRef = useRef<number | null>(null);
+  useEffect(() => {
+    let raf = 0;
+    const tick = (ts: number) => {
+      const last = lastTsRef.current ?? ts;
+      const dt = ts - last;
+      lastTsRef.current = ts;
+
+      const cycle = BASE_CYCLE_MS / speed;
+      const a = animRef.current;
+      if (a.phase !== "idle") {
+        const step = dt / (cycle / 3); // three phases share the cycle
+        let progress = a.progress + step;
+        let phase: WalkPhase = a.phase;
+        while (progress >= 1 && phase !== "idle") {
+          progress -= 1;
+          phase = nextPhase(phase);
+        }
+        animRef.current =
+          phase === "idle"
+            ? { ...a, phase: "idle", progress: 0 }
+            : { ...a, phase, progress };
+      } else if (isPlaying) {
+        commitStep();
+      }
+
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const dpr = window.devicePixelRatio || 1;
+        const dims = fitCanvas(canvas, SCENE_W, SCENE_H, dpr);
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.setTransform(dims.width / SCENE_W, 0, 0, dims.height / SCENE_H, 0, 0);
+          const cur = animRef.current;
+          const scene: SceneState = {
+            layout: computeLayout(SCENE_W, SCENE_H, names.length),
+            names,
+            counts: derive(simRef.current).counts,
+            phase: cur.phase,
+            progress: cur.progress,
+            targetArm: cur.targetArm,
+            lastRating: cur.phase === "rating" ? cur.lastRating : null,
+          };
+          drawScene(ctx, scene);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      lastTsRef.current = null;
+    };
+  }, [speed, isPlaying, commitStep, names]);
+
+  return (
+    <div className="app bandit">
+      <p>
+        <Link to="/">← All demos</Link>
+      </p>
+      <h1>Multi-Armed Bandit: Best Poutine in Montréal</h1>
+
+      <PolicyTabs value={policy} onChange={setPolicy} />
+
+      <div className="param-bar">
+        {policy === "epsilon-greedy" && (
+          <label>
+            ε = {epsilon.toFixed(2)}
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={epsilon}
+              onChange={(e) => setEpsilon(Number(e.target.value))}
+            />
+          </label>
+        )}
+        {policy === "optimistic" && (
+          <label>
+            Init value
+            <input
+              type="number"
+              step="0.5"
+              value={optimisticInit}
+              onChange={(e) => setOptimisticInit(Number(e.target.value))}
+            />
+          </label>
+        )}
+        <Toggle label="Show true value" checked={showTrue} onChange={setShowTrue} />
+        <Toggle label="Event log" checked={showLog} onChange={setShowLog} />
+        <button onClick={() => setShowSettings((s) => !s)} aria-label="Settings">
+          ⚙
+        </button>
+      </div>
+
+      <canvas ref={canvasRef} aria-label="Bandit animation" />
+
+      <div className="controls-row">
+        <PlaybackControls
+          isPlaying={isPlaying}
+          onStepBack={handleStepBack}
+          onStepForward={() => {
+            setIsPlaying(false);
+            commitStep();
+          }}
+          onTogglePlay={() => setIsPlaying((p) => !p)}
+          onReset={handleReset}
+        />
+        <SpeedSelector value={speed} onChange={setSpeed} />
+      </div>
+
+      <TrackerPanel
+        names={names}
+        q={derived.q}
+        counts={derived.counts}
+        trueValues={trueValues}
+        showTrue={showTrue}
+        max={MAX_VALUE}
+        step={derived.step}
+      />
+
+      {showLog && <EventLog entries={log} />}
+      {showSettings && (
+        <SettingsPanel restaurants={restaurants} onChange={setRestaurants} />
+      )}
+    </div>
+  );
+}
+
+function nextPhase(phase: WalkPhase): WalkPhase {
+  switch (phase) {
+    case "walking-to":
+      return "rating";
+    case "rating":
+      return "walking-back";
+    case "walking-back":
+      return "idle";
+    default:
+      return "idle";
+  }
+}

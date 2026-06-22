@@ -37,3 +37,22 @@ button:hover { background: var(--accent); color: var(--bg); }
 button[aria-pressed="true"], button.active { background: var(--accent); color: var(--bg); }
 
 canvas { image-rendering: pixelated; width: 100%; height: auto; background: #0f1020; }
+
+.bandit h1 { font-size: 16px; }
+.policy-tabs, .playback-controls, .speed-selector { display: flex; gap: 6px; flex-wrap: wrap; }
+.param-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+.param-bar label { display: flex; gap: 6px; align-items: center; }
+.controls-row { display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; margin: 12px 0; }
+.tracker-panel { display: grid; gap: 12px; margin-top: 16px; }
+.tracker-panel__step { color: var(--accent); }
+.value-bar__head { display: flex; justify-content: space-between; }
+.value-bar__track { position: relative; height: 18px; background: var(--panel); border: 2px solid var(--ink); }
+.value-bar__fill { height: 100%; }
+.value-bar__true { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--ink); }
+.value-bar__count { font-size: 10px; color: var(--mid); }
+.event-log { margin-top: 16px; max-height: 200px; overflow: auto; background: var(--panel); padding: 8px; }
+.event-log li { font-size: 10px; }
+.settings-panel { margin-top: 16px; background: var(--panel); padding: 12px; }
+.settings-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.settings-row input { width: 60px; }
+.toggle { display: flex; gap: 4px; align-items: center; }
