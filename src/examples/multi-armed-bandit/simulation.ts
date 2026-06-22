@@ -116,6 +116,24 @@ export function reset(state: SimState, seed?: number): SimState {
 }
 
 /**
+ * Make a manual choice of `arm` at the current pointer (used by manual mode, which
+ * has no automated policy): samples a reward for the chosen arm, discards any
+ * rewound-future steps, and appends the step with reason "manual".
+ */
+export function chooseArm(
+  state: SimState,
+  arm: number,
+): { state: SimState; record: StepRecord } {
+  const reward = sampleRating(state.config.restaurants[arm].dist, state.rng);
+  const record: StepRecord = { arm, reward, reason: "manual" };
+  const trajectory = state.trajectory.slice(0, state.pointer).concat(record);
+  return {
+    state: { ...state, trajectory, pointer: state.pointer + 1 },
+    record,
+  };
+}
+
+/**
  * Cumulative reward over applied steps: returns [0, r1, r1+r2, ...] up to the
  * current pointer. Index = step number; value = total reward earned by that step.
  */

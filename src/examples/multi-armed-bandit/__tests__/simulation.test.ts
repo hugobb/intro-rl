@@ -6,6 +6,7 @@ import {
   stepBack,
   reset,
   cumulativeReward,
+  chooseArm,
   type SimConfig,
   type Restaurant,
 } from "../simulation";
@@ -116,5 +117,24 @@ describe("simulation", () => {
     for (let i = 0; i < 4; i++) s = stepForward(s).state;
     s = stepBack(s);
     expect(cumulativeReward(s)).toHaveLength(4); // [0, ...3 steps]
+  });
+
+  it("chooseArm records a manual choice for the given arm", () => {
+    const { state, record } = chooseArm(createSim(cfg({ policy: "manual" })), 2);
+    expect(record.arm).toBe(2);
+    expect(record.reason).toBe("manual");
+    expect([1, 2, 3]).toContain(record.reward);
+    expect(derive(state).counts[2]).toBe(1);
+  });
+
+  it("chooseArm after a rewind truncates the future and appends", () => {
+    let s = createSim(cfg({ policy: "manual" }));
+    s = chooseArm(s, 0).state;
+    s = chooseArm(s, 1).state;
+    s = stepBack(s); // pointer 2 → 1
+    const { state } = chooseArm(s, 2); // drop the rewound step, append arm 2
+    expect(state.trajectory).toHaveLength(2);
+    expect(state.trajectory[1].arm).toBe(2);
+    expect(derive(state).step).toBe(2);
   });
 });

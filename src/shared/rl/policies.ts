@@ -1,10 +1,18 @@
 import type { RNG } from "./rng";
 import type { Estimates } from "./estimator";
 
-export type PolicyKind = "random" | "greedy" | "optimistic" | "epsilon-greedy";
+export type PolicyKind =
+  | "random"
+  | "greedy"
+  | "optimistic"
+  | "epsilon-greedy"
+  | "manual";
 
-/** Why an arm was chosen: a random "explore" pick, or the best-estimate "exploit" pick. */
-export type SelectionReason = "explore" | "exploit";
+/**
+ * Why an arm was chosen: a random "explore" pick, the best-estimate "exploit"
+ * pick, or a "manual" pick made by the user (manual mode has no automated policy).
+ */
+export type SelectionReason = "explore" | "exploit" | "manual";
 
 export interface Selection {
   arm: number;

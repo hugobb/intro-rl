@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import type { PolicyKind } from "@/shared/rl/policies";
+import type { PolicyKind, SelectionReason } from "@/shared/rl/policies";
 import { trueMean } from "@/shared/rl/reward";
 import { fitCanvas } from "@/shared/pixel/canvas";
 import { PALETTE } from "@/shared/pixel/palette";
@@ -14,6 +14,7 @@ import { Toggle } from "@/shared/ui/Toggle";
 import { RewardChart } from "@/shared/ui/RewardChart";
 import { RUN_COLORS, type ChartMetric, type RunData } from "@/shared/ui/chart";
 import {
+  chooseArm,
   createSim,
   derive,
   stepBack,
@@ -144,13 +145,33 @@ export function BanditExample() {
       targetArm: record.arm,
       lastRating: record.reward,
     };
-    const why = record.reason === "explore" ? "random" : "best";
     setLog((l) => [
       ...l,
-      `Step ${state.pointer} · ${why} · ${names[record.arm]} → ${record.reward}★`,
+      `Step ${state.pointer} · ${reasonLabel(record.reason)} · ${names[record.arm]} → ${record.reward}★`,
     ]);
     rerender();
   }, [names, rerender]);
+
+  // Manual mode: the user clicks a restaurant to visit it (no automated policy).
+  const handleChoose = useCallback(
+    (arm: number) => {
+      setIsPlaying(false);
+      const { state, record } = chooseArm(simRef.current, arm);
+      simRef.current = state;
+      animRef.current = {
+        phase: "walking-to",
+        progress: 0,
+        targetArm: arm,
+        lastRating: record.reward,
+      };
+      setLog((l) => [
+        ...l,
+        `Step ${state.pointer} · ${reasonLabel(record.reason)} · ${names[arm]} → ${record.reward}★`,
+      ]);
+      rerender();
+    },
+    [names, rerender],
+  );
 
   const handleStepBack = useCallback(() => {
     setIsPlaying(false);
@@ -293,6 +314,16 @@ export function BanditExample() {
             aria-label="Bandit animation"
             className="block h-auto w-full"
           />
+          {policy === "manual" && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-accent">Pick a restaurant:</span>
+              {names.map((name, i) => (
+                <button key={name} onClick={() => handleChoose(i)}>
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap justify-between gap-4">
             <PlaybackControls
               isPlaying={isPlaying}
@@ -303,6 +334,7 @@ export function BanditExample() {
               }}
               onTogglePlay={() => setIsPlaying((p) => !p)}
               onReset={handleReset}
+              manual={policy === "manual"}
             />
             <SpeedSelector value={speed} onChange={setSpeed} />
           </div>
@@ -337,6 +369,11 @@ export function BanditExample() {
       )}
     </div>
   );
+}
+
+function reasonLabel(reason: SelectionReason): string {
+  if (reason === "manual") return "you chose";
+  return reason === "explore" ? "random" : "best";
 }
 
 function nextPhase(phase: WalkPhase): WalkPhase {

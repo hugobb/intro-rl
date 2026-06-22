@@ -5,9 +5,16 @@ export const POLICY_LABELS: Record<PolicyKind, string> = {
   greedy: "Greedy",
   optimistic: "Optimistic Init",
   "epsilon-greedy": "ε-Greedy",
+  manual: "Manual",
 };
 
-const ORDER: PolicyKind[] = ["random", "greedy", "optimistic", "epsilon-greedy"];
+const ORDER: PolicyKind[] = [
+  "manual",
+  "random",
+  "greedy",
+  "optimistic",
+  "epsilon-greedy",
+];
 
 export function PolicyTabs({
   value,

@@ -4,24 +4,31 @@ export function PlaybackControls({
   onStepForward,
   onTogglePlay,
   onReset,
+  manual = false,
 }: {
   isPlaying: boolean;
   onStepBack: () => void;
   onStepForward: () => void;
   onTogglePlay: () => void;
   onReset: () => void;
+  /** Manual mode: hide Play/Step (the user advances by choosing a restaurant). */
+  manual?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-1.5" role="group" aria-label="Playback">
       <button onClick={onStepBack} aria-label="Step back">
         ◀ Back
       </button>
-      <button onClick={onTogglePlay} aria-label={isPlaying ? "Pause" : "Play"}>
-        {isPlaying ? "❚❚ Pause" : "▶ Play"}
-      </button>
-      <button onClick={onStepForward} aria-label="Step forward">
-        Step ▶
-      </button>
+      {!manual && (
+        <>
+          <button onClick={onTogglePlay} aria-label={isPlaying ? "Pause" : "Play"}>
+            {isPlaying ? "❚❚ Pause" : "▶ Play"}
+          </button>
+          <button onClick={onStepForward} aria-label="Step forward">
+            Step ▶
+          </button>
+        </>
+      )}
       <button onClick={onReset} aria-label="Reset">
         ⟲ Reset
       </button>
