@@ -10,11 +10,27 @@ export interface ChartLine {
   series: number[]; // RMS error per episode (index 0 = initial)
 }
 
+export type RmsMetric = "path" | "visited" | "all";
+export const RMS_METRIC_LABELS: Record<RmsMetric, string> = {
+  path: "RMS (path)",
+  visited: "RMS (visited)",
+  all: "RMS (all)",
+};
+const METRIC_ORDER: RmsMetric[] = ["path", "visited", "all"];
+
 const W = 320;
 const H = 240;
 const PAD = 28;
 
-export function ConvergenceChart({ lines }: { lines: ChartLine[] }) {
+export function ConvergenceChart({
+  lines,
+  metric = "path",
+  onMetricChange,
+}: {
+  lines: ChartLine[];
+  metric?: RmsMetric;
+  onMetricChange?: (m: RmsMetric) => void;
+}) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -60,7 +76,21 @@ export function ConvergenceChart({ lines }: { lines: ChartLine[] }) {
 
   return (
     <div className="bg-panel p-2">
-      <h3 className="mb-1 text-[11px]">RMS error vs. true V(s)</h3>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="text-[11px]">RMS error vs. true V(s)</h3>
+        <div className="flex gap-1" role="group" aria-label="RMS metric">
+          {METRIC_ORDER.map((m) => (
+            <button
+              key={m}
+              aria-pressed={m === metric}
+              onClick={() => onMetricChange?.(m)}
+              className="text-[8px]"
+            >
+              {RMS_METRIC_LABELS[m]}
+            </button>
+          ))}
+        </div>
+      </div>
       <canvas
         ref={ref}
         width={W}
