@@ -281,6 +281,8 @@ export function GridWorldExample() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastTsRef = useRef<number | null>(null);
+  const sceneScalarsRef = useRef({ maxAbs, qMaxAbs, valueView, gamma });
+  sceneScalarsRef.current = { maxAbs, qMaxAbs, valueView, gamma };
   useEffect(() => {
     let raf = 0;
     const tick = (ts: number) => {
@@ -311,19 +313,21 @@ export function GridWorldExample() {
         if (ctx) {
           ctx.setTransform(dims.width / SCENE_W, 0, 0, dims.height / SCENE_H, 0, 0);
           const cur = animRef.current;
+          const { maxAbs: mAbs, qMaxAbs: qAbs, valueView: vView, gamma: g } = sceneScalarsRef.current;
+          const vNow = derive(simRef.current).v;
           const scene: SceneState = {
             world,
-            v: derive(simRef.current).v,
+            v: vNow,
             policy,
             showPolicy,
             showValues: true,
             fromCell: cur.fromCell,
             toCell: cur.toCell,
             progress: cur.progress,
-            maxAbs,
-            valueView,
-            q: valueView === "q" ? computeQ(world, derive(simRef.current).v, gamma) : undefined,
-            qMaxAbs,
+            maxAbs: mAbs,
+            valueView: vView,
+            q: vView === "q" ? computeQ(world, vNow, g) : undefined,
+            qMaxAbs: qAbs,
             effect: effectRef.current,
             rewardPop: popRef.current,
           };
@@ -337,7 +341,7 @@ export function GridWorldExample() {
       cancelAnimationFrame(raf);
       lastTsRef.current = null;
     };
-  }, [speed, isPlaying, controlMode, commitStep, world, policy, showPolicy, maxAbs, valueView, qMaxAbs, gamma]);
+  }, [speed, isPlaying, controlMode, commitStep, world, policy, showPolicy]);
 
   useEffect(() => {
     if (!showSettings) return;
