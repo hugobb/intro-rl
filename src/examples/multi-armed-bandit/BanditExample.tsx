@@ -105,7 +105,10 @@ export function BanditExample() {
   }, [config, rerender, snapshotRun]);
 
   const derived = derive(simRef.current);
-  const names = restaurants.map((r) => r.name);
+  // Memoized so `commitStep` and the rAF animation effect keep a stable identity
+  // across per-step re-renders (otherwise the loop is torn down every step,
+  // resetting dt and dropping a walk frame each time).
+  const names = useMemo(() => restaurants.map((r) => r.name), [restaurants]);
   const trueValues = restaurants.map((r) => trueMean(r.dist));
 
   const liveCumulative = cumulativeReward(simRef.current);

@@ -43,7 +43,7 @@ export function RewardChart({
           <li className={selectedId === liveRun.id ? "selected" : ""}>
             <button className="legend-row" onClick={() => onSelect(liveRun.id)}>
               <span className="swatch" style={{ background: liveRun.color }} />
-              {liveRun.label}
+              {liveRun.label} · {liveRun.cumulative[liveRun.cumulative.length - 1] ?? 0}
             </button>
           </li>
         )}
