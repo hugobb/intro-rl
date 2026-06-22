@@ -1,0 +1,95 @@
+import { createRng, type RNG } from "@/shared/rl/rng";
+import { sampleRating, type Categorical } from "@/shared/rl/reward";
+import {
+  createEstimates,
+  updateEstimate,
+  type Estimates,
+} from "@/shared/rl/estimator";
+import { selectArm, type PolicyKind } from "@/shared/rl/policies";
+
+export interface Restaurant {
+  name: string;
+  dist: Categorical;
+}
+
+export interface SimConfig {
+  restaurants: Restaurant[];
+  policy: PolicyKind;
+  epsilon: number;
+  optimisticInit: number;
+  seed: number;
+}
+
+export interface StepRecord {
+  arm: number;
+  reward: number;
+}
+
+export interface SimState {
+  config: SimConfig;
+  trajectory: StepRecord[];
+  pointer: number;
+  rng: RNG;
+}
+
+export interface DerivedState {
+  q: number[];
+  counts: number[];
+  step: number;
+}
+
+function initValueFor(config: SimConfig): number {
+  return config.policy === "optimistic" ? config.optimisticInit : 0;
+}
+
+function estimatesAt(state: SimState): Estimates {
+  let est = createEstimates(state.config.restaurants.length, initValueFor(state.config));
+  for (let i = 0; i < state.pointer; i++) {
+    const rec = state.trajectory[i];
+    est = updateEstimate(est, rec.arm, rec.reward);
+  }
+  return est;
+}
+
+export function createSim(config: SimConfig): SimState {
+  return { config, trajectory: [], pointer: 0, rng: createRng(config.seed) };
+}
+
+export function derive(state: SimState): DerivedState {
+  const est = estimatesAt(state);
+  return { q: est.q, counts: est.counts, step: state.pointer };
+}
+
+export function stepForward(state: SimState): { state: SimState; record: StepRecord } {
+  if (state.pointer < state.trajectory.length) {
+    const record = state.trajectory[state.pointer];
+    return { state: { ...state, pointer: state.pointer + 1 }, record };
+  }
+  const est = estimatesAt(state);
+  const arm = selectArm(state.config.policy, est, state.config.epsilon, state.rng);
+  const reward = sampleRating(state.config.restaurants[arm].dist, state.rng);
+  const record: StepRecord = { arm, reward };
+  return {
+    state: {
+      ...state,
+      trajectory: state.trajectory.concat(record),
+      pointer: state.pointer + 1,
+    },
+    record,
+  };
+}
+
+export function stepBack(state: SimState): SimState {
+  if (state.pointer === 0) return state;
+  return { ...state, pointer: state.pointer - 1 };
+}
+
+export function reset(state: SimState, seed?: number): SimState {
+  const newSeed = seed ?? state.config.seed;
+  return {
+    config: { ...state.config, seed: newSeed },
+    trajectory: [],
+    pointer: 0,
+    rng: createRng(newSeed),
+  };
+}
