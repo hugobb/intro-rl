@@ -33,6 +33,7 @@ import {
   computeGridLayout,
   cellAtPoint,
   drawScene,
+  CRASH_IMPACT,
   type SceneState,
 } from "./scene";
 import {
@@ -84,7 +85,12 @@ interface Anim {
   progress: number;
 }
 type Effect = { kind: "crash" | "fall"; cell: number; progress: number } | null;
-type RewardPop = { value: number; cell: number; progress: number } | null;
+type RewardPop = {
+  value: number;
+  cell: number;
+  progress: number;
+  delay: number;
+} | null;
 
 interface SavedRun {
   label: string;
@@ -284,6 +290,8 @@ export function GridWorldExample() {
           value: record.reward,
           cell: record.nextState,
           progress: 0,
+          // on a crash, hold the reward until the car actually hits
+          delay: type === "road" && penalty ? CRASH_IMPACT * EFFECT_MS : 0,
         };
       setLog((l) => [
         ...l,
@@ -400,8 +408,12 @@ export function GridWorldExample() {
         if (effectRef.current.progress >= 1) effectRef.current = null;
       }
       if (popRef.current) {
-        popRef.current.progress += dt / (EFFECT_MS + 100);
-        if (popRef.current.progress >= 1) popRef.current = null;
+        if (popRef.current.delay > 0) {
+          popRef.current.delay -= dt;
+        } else {
+          popRef.current.progress += dt / (EFFECT_MS + 100);
+          if (popRef.current.progress >= 1) popRef.current = null;
+        }
       }
 
       const canvas = canvasRef.current;

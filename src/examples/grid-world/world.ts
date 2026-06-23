@@ -46,16 +46,16 @@ export const DEFAULT_REWARD: RewardConfig = {
   stepCost: 0,
 };
 
-// 6 rows x 7 cols. The default path: down col 0 (crossing the road off-crosswalk),
-// right along row 3 (over the manhole), down to row 5, right to the poutine, then
-// into Chez Claudette. The crosswalk (C, row 2 col 3) is safe scenery off the path.
+// 6 rows x 7 cols. The default path: down col 0 (crossing the road off-crosswalk)
+// to the poutine at row 5, right then up to the manhole at row 3 col 4, then back
+// down to Chez Claudette. The crosswalk (C, row 2 col 3) is safe scenery off the path.
 const DEFAULT_MAP = [
   "S......",
   ".#..#..",
   "RRRCRRR",
-  "..M....",
+  "....M..",
   ".#..#..",
-  ".....PG",
+  "P.....G",
 ];
 
 export const DEFAULT_WORLD: World = parseWorld(DEFAULT_MAP, DEFAULT_REWARD);
@@ -68,13 +68,17 @@ function makeDefaultPolicy(world: World): Policy {
   set(0, 0, "down");
   set(1, 0, "down");
   set(2, 0, "down");
-  set(3, 0, "right");
-  set(3, 1, "right");
-  set(3, 2, "right");
-  set(3, 3, "down");
-  set(4, 3, "down");
-  set(5, 3, "right");
-  set(5, 4, "right");
+  set(3, 0, "down");
+  set(4, 0, "down");
+  set(5, 0, "right"); // poutine
+  set(5, 1, "right");
+  set(5, 2, "right");
+  set(5, 3, "up");
+  set(4, 3, "up");
+  set(3, 3, "right");
+  set(3, 4, "right"); // manhole
+  set(3, 5, "down");
+  set(4, 5, "down");
   set(5, 5, "right");
   return pol;
 }

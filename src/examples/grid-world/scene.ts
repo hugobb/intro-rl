@@ -101,7 +101,12 @@ export interface SceneState {
   q?: number[][]; // [cell][actionIndex] when valueView==="q"
   qMaxAbs?: number;
   effect?: { kind: "crash" | "fall"; cell: number; progress: number } | null;
-  rewardPop?: { value: number; cell: number; progress: number } | null;
+  rewardPop?: {
+    value: number;
+    cell: number;
+    progress: number;
+    delay?: number; // ms still to wait before the pop appears (e.g. until crash impact)
+  } | null;
 }
 
 /** The triangular quadrant for `action` within a cell: two cell corners + the center. */
@@ -205,33 +210,71 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: SceneState): voi
   const effect = scene.effect ?? null;
   // manhole fall: sink the character as the effect progresses
   let charScale = 1;
+  let charDX = 0;
+  let charDY = 0;
   if (effect && effect.kind === "fall") {
     charScale = 1 - effect.progress;
     cy += effect.progress * 10;
+  } else if (effect && effect.kind === "crash" && effect.progress >= CRASH_IMPACT) {
+    // knocked sideways with a little hop on impact, then eases back upright
+    const k = (effect.progress - CRASH_IMPACT) / (1 - CRASH_IMPACT);
+    charDX = 14 * Math.sin(k * Math.PI);
+    charDY = -7 * Math.sin(Math.min(1, k * 1.4) * Math.PI);
   }
+  const drawX = cx + charDX;
+  const drawY = cy + charDY;
   const halfW = 8 * charScale;
   const bodyH = 20 * charScale;
   ctx.fillStyle = PALETTE.body;
-  ctx.fillRect(Math.round(cx - halfW), Math.round(cy - bodyH / 2), Math.round(halfW * 2), Math.round(bodyH));
+  ctx.fillRect(Math.round(drawX - halfW), Math.round(drawY - bodyH / 2), Math.round(halfW * 2), Math.round(bodyH));
   ctx.fillStyle = PALETTE.skin;
-  ctx.fillRect(Math.round(cx - 6 * charScale), Math.round(cy - bodyH / 2 - 8 * charScale), Math.round(12 * charScale), Math.round(8 * charScale));
+  ctx.fillRect(Math.round(drawX - 6 * charScale), Math.round(drawY - bodyH / 2 - 8 * charScale), Math.round(12 * charScale), Math.round(8 * charScale));
 
-  // car-crash effect: a car slides across the row + a burst flashes
+  // car-crash effect: a car drives in along the road, slams the pedestrian,
+  // then a burst of stars + debris flashes out and the car recoils away.
   if (effect && effect.kind === "crash") {
     const rect = cellRect(layout, effect.cell);
-    const carX = lerp(layout.originX, layout.originX + layout.width, effect.progress);
     const carY = rect.y + rect.h / 2;
-    ctx.fillStyle = PALETTE.bad;
-    ctx.fillRect(Math.round(carX - 14), Math.round(carY - 8), 28, 16);
-    ctx.fillStyle = PALETTE.star;
-    ctx.font = `20px ${PIXEL_FONT}`;
-    ctx.textAlign = "center";
-    if (effect.progress < 0.6) ctx.fillText("✺", cx, cy - 14);
+    const p = effect.progress;
+    const stopX = rect.x - 4; // pull up just left of the pedestrian
+    let carX: number;
+    if (p < CRASH_IMPACT) {
+      // approach: ease in from a few cells to the left
+      const startX = stopX - layout.cell * 2.5;
+      carX = lerp(startX, stopX, easeOut(p / CRASH_IMPACT));
+    } else {
+      // plough through and keep driving off to the right
+      const k = (p - CRASH_IMPACT) / (1 - CRASH_IMPACT);
+      const exitX = layout.originX + layout.width + 24;
+      carX = lerp(stopX, exitX, k);
+    }
+    drawCar(ctx, carX, carY);
+
+    // impact burst centred on the pedestrian
+    if (p >= CRASH_IMPACT) {
+      const k = (p - CRASH_IMPACT) / (1 - CRASH_IMPACT);
+      const burst = Math.sin(Math.min(1, k * 1.3) * Math.PI); // 0 → 1 → 0
+      ctx.globalAlpha = Math.max(0, 1 - k);
+      ctx.fillStyle = PALETTE.star;
+      ctx.font = `${Math.round(16 + 12 * burst)}px ${PIXEL_FONT}`;
+      ctx.textAlign = "center";
+      ctx.fillText("✺", drawX, drawY - 12);
+      // debris specks flung outward
+      ctx.fillStyle = PALETTE.accent;
+      const dist = 4 + k * 24;
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2 + 0.4;
+        const dx = Math.cos(ang) * dist;
+        const dy = Math.sin(ang) * dist - 4;
+        ctx.fillRect(Math.round(drawX + dx - 1.5), Math.round(drawY + dy - 1.5), 3, 3);
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
-  // floating reward number
+  // floating reward number (held back until impact when delayed)
   const pop = scene.rewardPop ?? null;
-  if (pop) {
+  if (pop && (pop.delay ?? 0) <= 0) {
     const rect = cellRect(layout, pop.cell);
     const px = rect.x + rect.w / 2;
     const py = rect.y + rect.h / 2 - pop.progress * 28;
@@ -251,7 +294,13 @@ function drawCellSprite(
 ): void {
   const cx = rect.x + rect.w / 2;
   const cy = rect.y + rect.h / 2;
-  if (type === "road" || type === "crosswalk") {
+  if (type === "crosswalk") {
+    // horizontal zebra stripes, no center lane line under them
+    ctx.fillStyle = "#f4f4f4";
+    for (let s = 0; s < 4; s++) {
+      ctx.fillRect(rect.x + 6, rect.y + 8 + s * 16, rect.w - 12, 8);
+    }
+  } else if (type === "road") {
     // dashed center lane line across the cell
     ctx.strokeStyle = "#d9d9d9";
     ctx.lineWidth = 2;
@@ -261,12 +310,6 @@ function drawCellSprite(
     ctx.lineTo(rect.x + rect.w, cy);
     ctx.stroke();
     ctx.setLineDash([]);
-    if (type === "crosswalk") {
-      ctx.fillStyle = "#f4f4f4";
-      for (let s = 0; s < 4; s++) {
-        ctx.fillRect(rect.x + 8 + s * 16, rect.y + 6, 8, rect.h - 12);
-      }
-    }
   } else if (type === "manhole") {
     ctx.fillStyle = "#1a1c2c";
     ctx.beginPath();
@@ -294,4 +337,26 @@ function drawCellSprite(
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
+}
+
+/** Progress point (0–1) at which the car reaches the pedestrian. */
+export const CRASH_IMPACT = 0.4;
+
+function easeOut(x: number): number {
+  return 1 - (1 - x) * (1 - x);
+}
+
+/** Draw a little pixel car centred at (x, y), facing right. */
+function drawCar(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.fillStyle = PALETTE.bad;
+  ctx.fillRect(Math.round(x - 16), Math.round(y - 7), 32, 14); // body
+  ctx.fillStyle = PALETTE.sky;
+  ctx.fillRect(Math.round(x - 6), Math.round(y - 10), 12, 6); // cabin
+  ctx.fillStyle = PALETTE.mid;
+  ctx.fillRect(Math.round(x - 4), Math.round(y - 9), 9, 4); // windshield
+  ctx.fillStyle = PALETTE.bg;
+  ctx.fillRect(Math.round(x - 12), Math.round(y + 5), 6, 4); // rear wheel
+  ctx.fillRect(Math.round(x + 6), Math.round(y + 5), 6, 4); // front wheel
+  ctx.fillStyle = PALETTE.accent;
+  ctx.fillRect(Math.round(x + 14), Math.round(y - 4), 3, 4); // headlight
 }
