@@ -29,7 +29,12 @@ import { ValueViewTabs, type ValueView } from "./ValueViewTabs";
 import { PolicyTypeTabs, type PolicyType } from "./PolicyTypeTabs";
 import { ControlModeTabs, type ControlMode } from "./ControlModeTabs";
 import { ReturnTracker } from "./ReturnTracker";
-import { computeGridLayout, cellAtPoint, drawScene, type SceneState } from "./scene";
+import {
+  computeGridLayout,
+  cellAtPoint,
+  drawScene,
+  type SceneState,
+} from "./scene";
 import {
   chooseAction,
   createSim,
@@ -71,7 +76,7 @@ const KEY_TO_ACTION: Record<string, Action> = {
   ArrowRight: "right",
 };
 const BASE_STEP_MS = 320;
-const EFFECT_MS = 500;
+const EFFECT_MS = 2000;
 
 interface Anim {
   fromCell: number;
@@ -99,7 +104,8 @@ export function GridWorldExample() {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [policyType, setPolicyType] = useState<PolicyType>(DEFAULT_POLICY_TYPE);
   const [epsilon, setEpsilon] = useState(DEFAULT_EPSILON);
-  const [controlMode, setControlMode] = useState<ControlMode>(DEFAULT_CONTROL_MODE);
+  const [controlMode, setControlMode] =
+    useState<ControlMode>(DEFAULT_CONTROL_MODE);
   const [valueView, setValueView] = useState<ValueView>("v");
   const [showPolicy, setShowPolicy] = useState(true);
   const [showTrue, setShowTrue] = useState(false);
@@ -114,11 +120,37 @@ export function GridWorldExample() {
   const runIdRef = useRef(0);
 
   const config: SimConfig = useMemo(
-    () => ({ world, policy, method, alpha, gamma, n, seed, policyType, epsilon, controlMode }),
-    [world, policy, method, alpha, gamma, n, seed, policyType, epsilon, controlMode],
+    () => ({
+      world,
+      policy,
+      method,
+      alpha,
+      gamma,
+      n,
+      seed,
+      policyType,
+      epsilon,
+      controlMode,
+    }),
+    [
+      world,
+      policy,
+      method,
+      alpha,
+      gamma,
+      n,
+      seed,
+      policyType,
+      epsilon,
+      controlMode,
+    ],
   );
   const simRef = useRef<SimState>(createSim(config));
-  const animRef = useRef<Anim>({ fromCell: world.start, toCell: world.start, progress: 1 });
+  const animRef = useRef<Anim>({
+    fromCell: world.start,
+    toCell: world.start,
+    progress: 1,
+  });
   const effectRef = useRef<Effect>(null);
   const popRef = useRef<RewardPop>(null);
   const [, forceTick] = useState(0);
@@ -133,13 +165,21 @@ export function GridWorldExample() {
     () => states.map((s) => `r${Math.floor(s / world.cols)}c${s % world.cols}`),
     [states, world.cols],
   );
-  const maxAbs = useMemo(() => Math.max(1, ...vTrue.map((x) => Math.abs(x))), [vTrue]);
+  const maxAbs = useMemo(
+    () => Math.max(1, ...vTrue.map((x) => Math.abs(x))),
+    [vTrue],
+  );
 
   // Snapshot the previous run from ITS OWN config (no stale closure on page state).
   const snapshotRun = useCallback((sim: SimState) => {
     if (sim.pointer === 0) return;
     const c = sim.config;
-    const vT = solveV(c.world, c.policy, c.gamma, c.policyType === "epsilon" ? (c.epsilon ?? 0) : 0);
+    const vT = solveV(
+      c.world,
+      c.policy,
+      c.gamma,
+      c.policyType === "epsilon" ? (c.epsilon ?? 0) : 0,
+    );
     const rmsPath = errorSeries(sim, vT, reachableStates(c.world, c.policy));
     if (rmsPath.length < 2) return;
     const id = runIdRef.current++;
@@ -158,7 +198,11 @@ export function GridWorldExample() {
   useEffect(() => {
     snapshotRun(simRef.current);
     simRef.current = createSim(config);
-    animRef.current = { fromCell: config.world.start, toCell: config.world.start, progress: 1 };
+    animRef.current = {
+      fromCell: config.world.start,
+      toCell: config.world.start,
+      progress: 1,
+    };
     effectRef.current = null;
     popRef.current = null;
     setLog([]);
@@ -185,27 +229,66 @@ export function GridWorldExample() {
 
   const chartLines: ChartLine[] = useMemo(() => {
     const pick = (r: SavedRun) =>
-      chartMetric === "path" ? r.rmsPath : chartMetric === "visited" ? r.rmsVisited : r.rmsAll;
-    const saved = savedRuns.map((r) => ({ label: r.label, color: r.color, series: pick(r) }));
+      chartMetric === "path"
+        ? r.rmsPath
+        : chartMetric === "visited"
+          ? r.rmsVisited
+          : r.rmsAll;
+    const saved = savedRuns.map((r) => ({
+      label: r.label,
+      color: r.color,
+      series: pick(r),
+    }));
     const live = liveSeries(chartMetric);
     if (live.length < 2) return saved;
     return [
       ...saved,
-      { label: `${METHOD_LABELS[method]} (current)`, color: PALETTE.accent, series: live },
+      {
+        label: `${METHOD_LABELS[method]} (current)`,
+        color: PALETTE.accent,
+        series: live,
+      },
     ];
     // derived.episode keeps the live line current as episodes complete
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedRuns, chartMetric, liveSeries, method, derived.episode]);
 
   const applyOutcome = useCallback(
-    (record: { state: number; reward: number; nextState: number; done: boolean }) => {
-      animRef.current = { fromCell: record.state, toCell: record.nextState, progress: 0 };
+    (record: {
+      state: number;
+      reward: number;
+      nextState: number;
+      done: boolean;
+    }) => {
+      animRef.current = {
+        fromCell: record.state,
+        toCell: record.nextState,
+        progress: 0,
+      };
       const type = world.cells[record.nextState];
       const penalty = record.reward < -world.reward.stepCost - 1e-9;
-      if (type === "road" && penalty) effectRef.current = { kind: "crash", cell: record.nextState, progress: 0 };
-      else if (type === "manhole" && penalty) effectRef.current = { kind: "fall", cell: record.nextState, progress: 0 };
-      if (record.reward !== 0) popRef.current = { value: record.reward, cell: record.nextState, progress: 0 };
-      setLog((l) => [...l, `Step ${simRef.current.pointer} · ${stepSummary(record.reward, record.done)}`]);
+      if (type === "road" && penalty)
+        effectRef.current = {
+          kind: "crash",
+          cell: record.nextState,
+          progress: 0,
+        };
+      else if (type === "manhole" && penalty)
+        effectRef.current = {
+          kind: "fall",
+          cell: record.nextState,
+          progress: 0,
+        };
+      if (record.reward !== 0)
+        popRef.current = {
+          value: record.reward,
+          cell: record.nextState,
+          progress: 0,
+        };
+      setLog((l) => [
+        ...l,
+        `Step ${simRef.current.pointer} · ${stepSummary(record.reward, record.done)}`,
+      ]);
       rerender();
     },
     [world, rerender],
@@ -220,8 +303,15 @@ export function GridWorldExample() {
   const handleEpisode = useCallback(() => {
     setIsPlaying(false);
     simRef.current = runEpisode(simRef.current);
-    animRef.current = { fromCell: world.start, toCell: currentCell(simRef.current), progress: 1 };
-    setLog((l) => [...l, `— episode ${derive(simRef.current).episode} complete —`]);
+    animRef.current = {
+      fromCell: world.start,
+      toCell: currentCell(simRef.current),
+      progress: 1,
+    };
+    setLog((l) => [
+      ...l,
+      `— episode ${derive(simRef.current).episode} complete —`,
+    ]);
     rerender();
   }, [rerender, world.start]);
 
@@ -244,10 +334,16 @@ export function GridWorldExample() {
       const rect = canvas.getBoundingClientRect();
       const px = ((e.clientX - rect.left) / rect.width) * SCENE_W;
       const py = ((e.clientY - rect.top) / rect.height) * SCENE_H;
-      const layout = computeGridLayout(SCENE_W, SCENE_H, world.rows, world.cols);
+      const layout = computeGridLayout(
+        SCENE_W,
+        SCENE_H,
+        world.rows,
+        world.cols,
+      );
       const cell = cellAtPoint(layout, px, py);
       if (cell === null) return;
-      if (world.cells[cell] === "wall" || world.cells[cell] === "restaurant") return;
+      if (world.cells[cell] === "wall" || world.cells[cell] === "restaurant")
+        return;
       setPolicy((prev) => {
         const next = prev.slice();
         next[cell] = ACTION_CYCLE[prev[cell]];
@@ -273,7 +369,10 @@ export function GridWorldExample() {
     return () => window.removeEventListener("keydown", onKey);
   }, [controlMode, applyOutcome]);
 
-  const qTrue = useMemo(() => computeQ(world, vTrue, gamma), [world, vTrue, gamma]);
+  const qTrue = useMemo(
+    () => computeQ(world, vTrue, gamma),
+    [world, vTrue, gamma],
+  );
   const qMaxAbs = useMemo(
     () => Math.max(1, ...qTrue.flat().map((x) => Math.abs(x))),
     [qTrue],
@@ -311,9 +410,21 @@ export function GridWorldExample() {
         const dims = fitCanvas(canvas, SCENE_W, SCENE_H, dpr);
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          ctx.setTransform(dims.width / SCENE_W, 0, 0, dims.height / SCENE_H, 0, 0);
+          ctx.setTransform(
+            dims.width / SCENE_W,
+            0,
+            0,
+            dims.height / SCENE_H,
+            0,
+            0,
+          );
           const cur = animRef.current;
-          const { maxAbs: mAbs, qMaxAbs: qAbs, valueView: vView, gamma: g } = sceneScalarsRef.current;
+          const {
+            maxAbs: mAbs,
+            qMaxAbs: qAbs,
+            valueView: vView,
+            gamma: g,
+          } = sceneScalarsRef.current;
           const vNow = derive(simRef.current).v;
           const scene: SceneState = {
             world,
@@ -366,12 +477,20 @@ export function GridWorldExample() {
       <div className="my-3 flex flex-wrap items-center gap-3">
         <ValueViewTabs value={valueView} onChange={setValueView} />
         <ControlModeTabs value={controlMode} onChange={setControlMode} />
-        {!manual && <PolicyTypeTabs value={policyType} onChange={setPolicyType} />}
+        {!manual && (
+          <PolicyTypeTabs value={policyType} onChange={setPolicyType} />
+        )}
         {!manual && policyType === "epsilon" && (
           <label className="flex items-center gap-1.5">
             ε = {epsilon.toFixed(2)}
-            <input type="range" min="0" max="1" step="0.01" value={epsilon}
-              onChange={(e) => setEpsilon(Number(e.target.value))} />
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={epsilon}
+              onChange={(e) => setEpsilon(Number(e.target.value))}
+            />
           </label>
         )}
       </div>
@@ -379,27 +498,58 @@ export function GridWorldExample() {
       <div className="my-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-1.5">
           α = {alpha.toFixed(2)}
-          <input type="range" min="0.01" max="1" step="0.01" value={alpha}
-            onChange={(e) => setAlpha(Number(e.target.value))} />
+          <input
+            type="range"
+            min="0.01"
+            max="1"
+            step="0.01"
+            value={alpha}
+            onChange={(e) => setAlpha(Number(e.target.value))}
+          />
         </label>
         <label className="flex items-center gap-1.5">
           γ = {gamma.toFixed(2)}
-          <input type="range" min="0.5" max="0.99" step="0.01" value={gamma}
-            onChange={(e) => setGamma(Number(e.target.value))} />
+          <input
+            type="range"
+            min="0.5"
+            max="0.99"
+            step="0.01"
+            value={gamma}
+            onChange={(e) => setGamma(Number(e.target.value))}
+          />
         </label>
         {method === "nstep" && (
           <label className="flex items-center gap-1.5">
             n =
-            <input type="number" min="1" max="50" step="1" value={n}
+            <input
+              type="number"
+              min="1"
+              max="50"
+              step="1"
+              value={n}
               className="w-[56px] border-2 border-ink bg-bg px-1 text-ink"
-              onChange={(e) => setN(Math.max(1, Math.floor(Number(e.target.value))))} />
+              onChange={(e) =>
+                setN(Math.max(1, Math.floor(Number(e.target.value))))
+              }
+            />
           </label>
         )}
-        <Toggle label="Show policy" checked={showPolicy} onChange={setShowPolicy} />
-        <Toggle label="Show true value" checked={showTrue} onChange={setShowTrue} />
+        <Toggle
+          label="Show policy"
+          checked={showPolicy}
+          onChange={setShowPolicy}
+        />
+        <Toggle
+          label="Show true value"
+          checked={showTrue}
+          onChange={setShowTrue}
+        />
         <Toggle label="Event log" checked={showLog} onChange={setShowLog} />
         <Toggle label="Chart" checked={showChart} onChange={setShowChart} />
-        <button onClick={() => setShowSettings((s) => !s)} aria-label="Settings">
+        <button
+          onClick={() => setShowSettings((s) => !s)}
+          aria-label="Settings"
+        >
           Settings
         </button>
       </div>
@@ -489,7 +639,10 @@ export function GridWorldExample() {
           >
             <div className="mb-3 flex items-center justify-between gap-4">
               <h2 className="text-[14px]">Hazards & rewards</h2>
-              <button onClick={() => setShowSettings(false)} aria-label="Close settings">
+              <button
+                onClick={() => setShowSettings(false)}
+                aria-label="Close settings"
+              >
                 Close
               </button>
             </div>
@@ -512,6 +665,7 @@ function rmsOf(v: number[], vTrue: number[], states: number[]): number {
 }
 
 function stepSummary(reward: number, done: boolean): string {
-  const r = reward === 0 ? "no reward" : `reward ${reward > 0 ? "+" : ""}${reward}`;
+  const r =
+    reward === 0 ? "no reward" : `reward ${reward > 0 ? "+" : ""}${reward}`;
   return done ? `${r} · reached restaurant` : r;
 }

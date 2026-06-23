@@ -48,11 +48,11 @@ export const DEFAULT_REWARD: RewardConfig = {
 
 // 6 rows x 7 cols. The default path: down col 0 (crossing the road off-crosswalk),
 // right along row 3 (over the manhole), down to row 5, right to the poutine, then
-// into Chez Claudette. The crosswalk (C, row 2 col 4) is safe scenery off the path.
+// into Chez Claudette. The crosswalk (C, row 2 col 3) is safe scenery off the path.
 const DEFAULT_MAP = [
   "S......",
   ".#..#..",
-  "RRRRCRR",
+  "RRRCRRR",
   "..M....",
   ".#..#..",
   ".....PG",
